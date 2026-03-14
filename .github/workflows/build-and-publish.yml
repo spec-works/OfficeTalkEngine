@@ -96,7 +96,6 @@ jobs:
 
         dotnet pack src/OfficeTalk.Cli/OfficeTalk.Cli.csproj \
           --configuration Release \
-          --no-build \
           --output packages
       working-directory: ${{ env.PROJECT_PATH }}
 
