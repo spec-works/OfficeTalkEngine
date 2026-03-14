@@ -11,7 +11,7 @@ on:
 
 env:
   DOTNET_VERSION: '9.0.x'
-  PROJECT_PATH: 'OfficeTalkEngine/dotnet'
+  PROJECT_PATH: 'dotnet'
 
 jobs:
   build-and-test:
@@ -19,16 +19,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout OfficeTalkEngine
+    - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        path: OfficeTalkEngine
-
-    - name: Checkout OfficeTalk (dependency)
-      uses: actions/checkout@v4
-      with:
-        repository: spec-works/OfficeTalk
-        path: OfficeTalk
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
@@ -63,16 +55,8 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
 
     steps:
-    - name: Checkout OfficeTalkEngine
+    - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        path: OfficeTalkEngine
-
-    - name: Checkout OfficeTalk (dependency)
-      uses: actions/checkout@v4
-      with:
-        repository: spec-works/OfficeTalk
-        path: OfficeTalk
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
