@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/OfficeTalk.Cli/OfficeTalk.Cli.csproj" />
     <Project Path="src/OfficeTalkEngine/OfficeTalkEngine.csproj" />
   </Folder>
   <Folder Name="/tests/">
