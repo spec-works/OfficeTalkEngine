@@ -1,0 +1,13 @@
+{
+  "name": "address-not-found",
+  "description": "Address that doesn't match any element",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Only paragraph" }
+    ]
+  },
+  "operations": "address-not-found.otk",
+  "expectedError": "ADDRESS_NOT_FOUND",
+  "isValid": false
+}

@@ -1,0 +1,20 @@
+{
+  "name": "delete-paragraph",
+  "description": "DELETE removes a paragraph element",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Introduction" },
+      { "type": "paragraph", "text": "DRAFT" },
+      { "type": "paragraph", "text": "Content" }
+    ]
+  },
+  "operations": "delete-paragraph.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "Introduction" },
+      { "type": "paragraph", "text": "Content" }
+    ]
+  },
+  "isValid": true
+}

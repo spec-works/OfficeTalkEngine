@@ -1,0 +1,21 @@
+{
+  "name": "snapshot-semantics",
+  "description": "Verifies operations use snapshot (pre-resolution) semantics",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "First original" },
+      { "type": "paragraph", "text": "Second original" },
+      { "type": "paragraph", "text": "Third original" }
+    ]
+  },
+  "operations": "snapshot-semantics.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "First was modified" },
+      { "type": "paragraph", "text": "Second was modified" },
+      { "type": "paragraph", "text": "Third original" }
+    ]
+  },
+  "isValid": true
+}

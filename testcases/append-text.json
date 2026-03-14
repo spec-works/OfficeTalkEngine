@@ -1,0 +1,17 @@
+{
+  "name": "append-text",
+  "description": "APPEND adds text to the end of a paragraph",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "See the results below" }
+    ]
+  },
+  "operations": "append-text.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "See the results below (see Appendix A)" }
+    ]
+  },
+  "isValid": true
+}

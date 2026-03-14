@@ -1,0 +1,17 @@
+{
+  "name": "multiple-operations",
+  "description": "Multiple operations in a single block applied sequentially",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Original" }
+    ]
+  },
+  "operations": "multiple-operations.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "Base text with suffix" }
+    ]
+  },
+  "isValid": true
+}

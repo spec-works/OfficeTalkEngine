@@ -1,0 +1,13 @@
+{
+  "name": "replace-search-not-found",
+  "description": "REPLACE where search text doesn't exist in target",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Some content here" }
+    ]
+  },
+  "operations": "replace-search-not-found.otk",
+  "expectedError": "SEARCH_NOT_FOUND",
+  "isValid": false
+}

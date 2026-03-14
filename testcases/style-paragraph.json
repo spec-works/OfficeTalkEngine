@@ -1,0 +1,17 @@
+{
+  "name": "style-paragraph",
+  "description": "STYLE applies a named paragraph style",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Section Title" }
+    ]
+  },
+  "operations": "style-paragraph.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "Section Title", "style": "Heading2" }
+    ]
+  },
+  "isValid": true
+}

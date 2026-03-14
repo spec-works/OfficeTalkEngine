@@ -1,0 +1,17 @@
+{
+  "name": "prepend-text",
+  "description": "PREPEND adds text to the beginning of a paragraph",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Revenue grew 12%." }
+    ]
+  },
+  "operations": "prepend-text.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "UPDATED: Revenue grew 12%." }
+    ]
+  },
+  "isValid": true
+}

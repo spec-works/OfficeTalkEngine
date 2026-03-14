@@ -1,0 +1,29 @@
+{
+  "name": "resolve-table-cell",
+  "description": "Address resolution for table/row/cell paths",
+  "input": {
+    "type": "word",
+    "body": [
+      {
+        "type": "table",
+        "rows": [
+          { "cells": ["Header 1", "Header 2"] },
+          { "cells": ["Value 1", "Value 2"] }
+        ]
+      }
+    ]
+  },
+  "operations": "resolve-table-cell.otk",
+  "expected": {
+    "body": [
+      {
+        "type": "table",
+        "rows": [
+          { "cells": ["Header 1", "Header 2"] },
+          { "cells": ["Updated", "Value 2"] }
+        ]
+      }
+    ]
+  },
+  "isValid": true
+}

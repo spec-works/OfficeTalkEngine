@@ -1,0 +1,14 @@
+{
+  "name": "address-ambiguous",
+  "description": "Address matching multiple elements without EACH",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "First content" },
+      { "type": "paragraph", "text": "Second content" }
+    ]
+  },
+  "operations": "address-ambiguous.otk",
+  "expectedError": "ADDRESS_AMBIGUOUS",
+  "isValid": false
+}

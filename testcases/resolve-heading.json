@@ -1,0 +1,25 @@
+{
+  "name": "resolve-heading",
+  "description": "Address resolution for headings with level and text predicates",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "heading", "level": 1, "text": "Title" },
+      { "type": "heading", "level": 2, "text": "Introduction" },
+      { "type": "paragraph", "text": "Intro content" },
+      { "type": "heading", "level": 2, "text": "Methods" },
+      { "type": "paragraph", "text": "Methods content" }
+    ]
+  },
+  "operations": "resolve-heading.otk",
+  "expected": {
+    "body": [
+      { "type": "heading", "level": 1, "text": "Title" },
+      { "type": "heading", "level": 2, "text": "Introduction" },
+      { "type": "paragraph", "text": "Intro content" },
+      { "type": "heading", "level": 2, "text": "Updated Methods" },
+      { "type": "paragraph", "text": "Methods content" }
+    ]
+  },
+  "isValid": true
+}

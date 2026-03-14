@@ -1,0 +1,13 @@
+{
+  "name": "style-not-found",
+  "description": "STYLE referencing a non-existent style",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Some content" }
+    ]
+  },
+  "operations": "style-not-found.otk",
+  "expectedError": "MISSING_STYLE",
+  "isValid": false
+}

@@ -1,0 +1,17 @@
+{
+  "name": "replace-in-paragraph",
+  "description": "REPLACE finds and replaces text within a paragraph",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Revenue for FY2024 exceeded expectations." }
+    ]
+  },
+  "operations": "replace-in-paragraph.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "Revenue for FY2025 exceeded expectations." }
+    ]
+  },
+  "isValid": true
+}

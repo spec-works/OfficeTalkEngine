@@ -1,0 +1,19 @@
+{
+  "name": "replace-all-in-body",
+  "description": "REPLACE ALL replaces all occurrences across the body",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "The colour of the sky." },
+      { "type": "paragraph", "text": "My favourite colour is blue." }
+    ]
+  },
+  "operations": "replace-all-in-body.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "The color of the sky." },
+      { "type": "paragraph", "text": "My favourite color is blue." }
+    ]
+  },
+  "isValid": true
+}

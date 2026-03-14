@@ -1,0 +1,9 @@
+OFFICETALK/1.0
+DOCTYPE word
+
+# Both addresses reference the original document state
+AT body/paragraph[1]
+SET "First was modified"
+
+AT body/paragraph[2]
+SET "Second was modified"

@@ -1,0 +1,5 @@
+OFFICETALK/1.0
+DOCTYPE word
+
+AT body
+REPLACE ALL "colour" WITH "color"
