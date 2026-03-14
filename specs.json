@@ -1,0 +1,21 @@
+{
+  "linkset": [
+    {
+      "href": "https://www.ecma-international.org/publications-and-standards/standards/ecma-376/",
+      "type": "text/html",
+      "rel": "describedby",
+      "title": "Office Open XML - ECMA-376 5th edition"
+    },
+    {
+      "href": "https://learn.microsoft.com/en-us/office/open-xml/open-xml-sdk",
+      "type": "text/html",
+      "rel": "related",
+      "title": "Open XML SDK Documentation"
+    },
+    {
+      "rel": "registry",
+      "title": "Part registry entry",
+      "href": "https://spec-works.github.io/registry/parts/officetalkengine/"
+    }
+  ]
+}

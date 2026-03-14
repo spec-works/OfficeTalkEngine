@@ -1,0 +1,31 @@
+name: .NET Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: OfficeTalkEngine
+      - uses: actions/checkout@v4
+        with:
+          repository: spec-works/OfficeTalk
+          path: OfficeTalk
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+      - name: Restore
+        run: dotnet restore
+        working-directory: OfficeTalkEngine/dotnet
+      - name: Build
+        run: dotnet build --no-restore
+        working-directory: OfficeTalkEngine/dotnet
+      - name: Test
+        run: dotnet test --no-build
+        working-directory: OfficeTalkEngine/dotnet
