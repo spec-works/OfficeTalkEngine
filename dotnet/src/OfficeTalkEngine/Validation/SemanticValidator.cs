@@ -26,9 +26,13 @@ public class SemanticValidator
     {
         var result = new ValidationResult();
 
-        // Open via memory stream to avoid holding a file lock that blocks OneDrive sync
-        byte[] fileBytes = File.ReadAllBytes(targetPath);
-        using var memoryStream = new MemoryStream(fileBytes, writable: false);
+        // Open with FileShare.ReadWrite so we can validate even if Word has the file open
+        using var memoryStream = new MemoryStream();
+        using (var fs = new FileStream(targetPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        {
+            fs.CopyTo(memoryStream);
+        }
+        memoryStream.Position = 0;
         using var wordDoc = WordprocessingDocument.Open(memoryStream, false);
         var resolver = new WordAddressResolver(wordDoc);
 

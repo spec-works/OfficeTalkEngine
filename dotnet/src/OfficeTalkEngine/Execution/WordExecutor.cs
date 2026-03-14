@@ -18,10 +18,12 @@ public class WordExecutor : IOfficeTalkExecutor
         if (outputPath != null && outputPath != targetPath)
             File.Copy(targetPath, outputPath, overwrite: true);
 
-        // Read file into memory to avoid holding a file lock that blocks OneDrive sync
-        byte[] fileBytes = File.ReadAllBytes(workingPath);
+        // Read file with FileShare.ReadWrite so we can read even if Word has it open
         using var memoryStream = new MemoryStream();
-        memoryStream.Write(fileBytes, 0, fileBytes.Length);
+        using (var fs = new FileStream(workingPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        {
+            fs.CopyTo(memoryStream);
+        }
         memoryStream.Position = 0;
 
         using (var wordDoc = WordprocessingDocument.Open(memoryStream, true))

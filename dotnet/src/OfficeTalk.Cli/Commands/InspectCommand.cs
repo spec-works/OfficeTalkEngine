@@ -47,9 +47,13 @@ public static class InspectCommand
             var parsedAddress = document.OperationBlocks[0].Address;
 
             // Resolve against target document
-            // Open via memory stream to avoid holding a file lock that blocks OneDrive sync
-            byte[] fileBytes = File.ReadAllBytes(target.FullName);
-            using var memoryStream = new MemoryStream(fileBytes, writable: false);
+            // Open with FileShare.ReadWrite so we can inspect even if Word has the file open
+            using var memoryStream = new MemoryStream();
+            using (var fs = new FileStream(target.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                fs.CopyTo(memoryStream);
+            }
+            memoryStream.Position = 0;
             using var wordDoc = WordprocessingDocument.Open(memoryStream, false);
             var resolver = new WordAddressResolver(wordDoc);
             var elements = resolver.Resolve(parsedAddress);
