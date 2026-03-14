@@ -14,4 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\OfficeTalkEngine\OfficeTalkEngine.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\testcases\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="testcases" />
+  </ItemGroup>
 </Project>

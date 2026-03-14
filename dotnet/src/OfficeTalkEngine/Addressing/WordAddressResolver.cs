@@ -28,10 +28,21 @@ public class WordAddressResolver : IAddressResolver
             .OfType<OpenXmlElement>()
             .ToList() ?? new List<OpenXmlElement>();
 
-        for (int i = 0; i < address.Segments.Count; i++)
+        // Skip the "body" root segment — context is already body's children.
+        var segments = address.Segments;
+        int startIndex = 0;
+
+        if (segments[0].Identifier.Equals("body", StringComparison.OrdinalIgnoreCase))
         {
-            var segment = address.Segments[i];
-            current = ResolveSegment(segment, current, isRoot: i == 0);
+            if (segments.Count == 1)
+                return current; // AT body → all body children
+            startIndex = 1;
+        }
+
+        for (int i = startIndex; i < segments.Count; i++)
+        {
+            var segment = segments[i];
+            current = ResolveSegment(segment, current, isRoot: i == startIndex);
 
             if (current.Count == 0)
                 return current;

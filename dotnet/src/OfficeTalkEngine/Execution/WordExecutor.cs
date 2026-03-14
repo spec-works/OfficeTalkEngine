@@ -214,7 +214,9 @@ public class WordExecutor : IOfficeTalkExecutor
         if (element is Paragraph paragraph)
         {
             var props = paragraph.ParagraphProperties ?? paragraph.PrependChild(new ParagraphProperties());
-            props.ParagraphStyleId = new ParagraphStyleId { Val = operation.StyleName };
+            // Normalize display name (e.g. "Heading 2") to style ID (e.g. "Heading2")
+            var styleId = operation.StyleName.Replace(" ", "");
+            props.ParagraphStyleId = new ParagraphStyleId { Val = styleId };
         }
     }
 
