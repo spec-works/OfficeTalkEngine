@@ -1,0 +1,177 @@
+name: Build, Test, and Publish
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  PROJECT_PATH: 'OfficeTalkEngine/dotnet'
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout OfficeTalkEngine
+      uses: actions/checkout@v4
+      with:
+        path: OfficeTalkEngine
+
+    - name: Checkout OfficeTalk (dependency)
+      uses: actions/checkout@v4
+      with:
+        repository: spec-works/OfficeTalk
+        path: OfficeTalk
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ${{ env.PROJECT_PATH }}
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+      working-directory: ${{ env.PROJECT_PATH }}
+
+    - name: Run tests
+      run: dotnet test --configuration Release --no-build --verbosity normal
+      working-directory: ${{ env.PROJECT_PATH }}
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts
+        path: |
+          ${{ env.PROJECT_PATH }}/src/OfficeTalkEngine/bin/Release/
+          ${{ env.PROJECT_PATH }}/src/OfficeTalk.Cli/bin/Release/
+        retention-days: 7
+
+  pack:
+    name: Create NuGet Packages
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+
+    steps:
+    - name: Checkout OfficeTalkEngine
+      uses: actions/checkout@v4
+      with:
+        path: OfficeTalkEngine
+
+    - name: Checkout OfficeTalk (dependency)
+      uses: actions/checkout@v4
+      with:
+        repository: spec-works/OfficeTalk
+        path: OfficeTalk
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ${{ env.PROJECT_PATH }}
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+      working-directory: ${{ env.PROJECT_PATH }}
+
+    - name: Create NuGet packages
+      run: |
+        dotnet pack src/OfficeTalkEngine/OfficeTalkEngine.csproj \
+          --configuration Release \
+          --no-build \
+          --output packages
+
+        dotnet pack src/OfficeTalk.Cli/OfficeTalk.Cli.csproj \
+          --configuration Release \
+          --no-build \
+          --output packages
+      working-directory: ${{ env.PROJECT_PATH }}
+
+    - name: Upload NuGet packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: nuget-packages
+        path: ${{ env.PROJECT_PATH }}/packages/*.nupkg
+        retention-days: 30
+
+  publish-nuget:
+    name: Publish to NuGet.org
+    needs: pack
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+    - name: Download NuGet packages
+      uses: actions/download-artifact@v4
+      with:
+        name: nuget-packages
+        path: packages
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Publish to NuGet.org
+      run: |
+        dotnet nuget push packages/*.nupkg \
+          --api-key ${{ secrets.NUGET_API_KEY }} \
+          --source https://api.nuget.org/v3/index.json \
+          --skip-duplicate
+
+    - name: Publish summary
+      run: |
+        echo "## 📦 Published Packages" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        for package in packages/*.nupkg; do
+          echo "- $(basename $package)" >> $GITHUB_STEP_SUMMARY
+        done
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Published to NuGet.org with tag: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+
+  create-github-release:
+    name: Create GitHub Release
+    needs: publish-nuget
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download NuGet packages
+      uses: actions/download-artifact@v4
+      with:
+        name: nuget-packages
+        path: packages
+
+    - name: Extract version from tag
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: Version ${{ steps.version.outputs.VERSION }}
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+        files: |
+          packages/*.nupkg
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
