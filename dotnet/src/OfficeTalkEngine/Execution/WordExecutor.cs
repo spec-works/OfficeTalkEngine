@@ -18,37 +18,47 @@ public class WordExecutor : IOfficeTalkExecutor
         if (outputPath != null && outputPath != targetPath)
             File.Copy(targetPath, outputPath, overwrite: true);
 
-        using var wordDoc = WordprocessingDocument.Open(workingPath, true);
+        // Read file into memory to avoid holding a file lock that blocks OneDrive sync
+        byte[] fileBytes = File.ReadAllBytes(workingPath);
+        using var memoryStream = new MemoryStream();
+        memoryStream.Write(fileBytes, 0, fileBytes.Length);
+        memoryStream.Position = 0;
 
-        // Phase 1: Snapshot — resolve all addresses before mutation
-        var resolvedBlocks = new List<(OperationBlock Block, IReadOnlyList<OpenXmlElement> Elements)>();
-        var resolver = new WordAddressResolver(wordDoc);
-
-        foreach (var block in document.OperationBlocks)
+        using (var wordDoc = WordprocessingDocument.Open(memoryStream, true))
         {
-            var elements = resolver.Resolve(block.Address);
-            resolvedBlocks.Add((block, elements));
-        }
+            // Phase 1: Snapshot — resolve all addresses before mutation
+            var resolvedBlocks = new List<(OperationBlock Block, IReadOnlyList<OpenXmlElement> Elements)>();
+            var resolver = new WordAddressResolver(wordDoc);
 
-        // Phase 2: Execute operations against resolved elements
-        foreach (var (block, elements) in resolvedBlocks)
-        {
-            foreach (var element in elements)
+            foreach (var block in document.OperationBlocks)
             {
-                foreach (var operation in block.Operations)
+                var elements = resolver.Resolve(block.Address);
+                resolvedBlocks.Add((block, elements));
+            }
+
+            // Phase 2: Execute operations against resolved elements
+            foreach (var (block, elements) in resolvedBlocks)
+            {
+                foreach (var element in elements)
                 {
-                    ExecuteOperation(wordDoc, element, operation);
+                    foreach (var operation in block.Operations)
+                    {
+                        ExecuteOperation(wordDoc, element, operation);
+                    }
                 }
             }
+
+            // Apply document-level property settings
+            foreach (var prop in document.PropertySettings)
+            {
+                ApplyProperty(wordDoc, prop.Name, prop.Value);
+            }
+
+            wordDoc.Save();
         }
 
-        // Apply document-level property settings
-        foreach (var prop in document.PropertySettings)
-        {
-            ApplyProperty(wordDoc, prop.Name, prop.Value);
-        }
-
-        wordDoc.Save();
+        // Write modified content back to disk
+        File.WriteAllBytes(workingPath, memoryStream.ToArray());
     }
 
     /// <summary>

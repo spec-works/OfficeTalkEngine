@@ -26,7 +26,10 @@ public class SemanticValidator
     {
         var result = new ValidationResult();
 
-        using var wordDoc = WordprocessingDocument.Open(targetPath, false);
+        // Open via memory stream to avoid holding a file lock that blocks OneDrive sync
+        byte[] fileBytes = File.ReadAllBytes(targetPath);
+        using var memoryStream = new MemoryStream(fileBytes, writable: false);
+        using var wordDoc = WordprocessingDocument.Open(memoryStream, false);
         var resolver = new WordAddressResolver(wordDoc);
 
         foreach (var block in document.OperationBlocks)
