@@ -485,10 +485,52 @@ public class WordComExecutor : IOfficeTalkExecutor
 
     private static List<dynamic> ResolveRuns(dynamic doc, AddressSegment segment, List<dynamic>? parentRanges)
     {
+        // Check if there's a text predicate we can use with Find for precise matching
+        var textPred = segment.Predicates.OfType<KeyValuePredicate>()
+            .FirstOrDefault(p => p.Key.Equals("text", StringComparison.OrdinalIgnoreCase)
+                              && p.Operator == PredicateOperator.Equals);
+
+        if (textPred != null)
+        {
+            // Use Word's Find to locate exact text — returns precise ranges
+            var found = new List<dynamic>();
+            var searchRanges = parentRanges ?? new List<dynamic> { doc.Content };
+            foreach (var searchRange in searchRanges)
+            {
+                dynamic range = searchRange.Duplicate;
+                dynamic find = range.Find;
+                find.ClearFormatting();
+                find.Text = textPred.Value;
+                find.Forward = true;
+                find.Wrap = 0; // wdFindStop
+                find.MatchCase = true;
+                find.MatchWholeWord = false;
+
+                while ((bool)find.Execute())
+                {
+                    found.Add(range.Duplicate);
+                    // Move past the found text to find next occurrence
+                    range.Start = (int)range.End;
+                    range.End = (int)searchRange.End;
+                    find = range.Find;
+                    find.ClearFormatting();
+                    find.Text = textPred.Value;
+                    find.Forward = true;
+                    find.Wrap = 0;
+                    find.MatchCase = true;
+                    find.MatchWholeWord = false;
+                }
+            }
+            // Apply remaining predicates (positional, etc.) excluding the text one we already used
+            var remaining = segment.Predicates
+                .Where(p => !ReferenceEquals(p, textPred)).ToList();
+            return ApplyRangePredicates(doc, found, remaining);
+        }
+
+        // Fallback: iterate Words collection (less precise)
         var runs = new List<dynamic>();
         if (parentRanges == null)
         {
-            // Root level — all runs in document (unusual but supported)
             foreach (dynamic para in doc.Paragraphs)
             {
                 foreach (dynamic word in para.Range.Words)
@@ -834,13 +876,13 @@ public class WordComExecutor : IOfficeTalkExecutor
     {
         try
         {
-            range.set_Style(operation.StyleName);
+            range.Style = operation.StyleName;
         }
         catch (COMException)
         {
             try
             {
-                range.set_Style(operation.StyleName.Replace(" ", ""));
+                range.Style = operation.StyleName.Replace(" ", "");
             }
             catch (COMException ex)
             {
@@ -905,7 +947,7 @@ public class WordComExecutor : IOfficeTalkExecutor
                         range.ParagraphFormat.LineSpacing = (float)line;
                     break;
                 case "style":
-                    try { range.set_Style(strValue); } catch { }
+                    try { range.Style = strValue; } catch { }
                     break;
             }
         }
