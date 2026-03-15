@@ -1,0 +1,26 @@
+OFFICETALK/1.0
+DOCTYPE word
+
+AT body/paragraph[1]
+INSERT AFTER "Goals"
+
+AT body/paragraph[2]
+INSERT AFTER "Enable AI agents to author documents"
+
+AT body/paragraph[3]
+INSERT AFTER "Provide a deterministic operation language"
+
+AT body/paragraph[4]
+INSERT AFTER "Support real-time editing via CLI"
+
+AT body/paragraph[3]
+STYLE "ListBullet"
+
+AT body/paragraph[4]
+STYLE "ListBullet"
+
+AT body/paragraph[5]
+STYLE "ListBullet"
+
+AT body/paragraph[2]
+STYLE "Heading2"

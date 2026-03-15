@@ -1,0 +1,31 @@
+{
+  "name": "insert-section-with-bullets",
+  "description": "Insert a heading section with multiple bullet points after intro — the Goals pattern. Tests INSERT AFTER chaining followed by STYLE operations with correct ordering.",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "heading", "level": 1, "text": "Report Title" },
+      { "type": "paragraph", "text": "Introduction text" },
+      { "type": "heading", "level": 2, "text": "Financial Summary" },
+      { "type": "paragraph", "text": "Revenue grew 29%" },
+      { "type": "heading", "level": 2, "text": "Conclusion" },
+      { "type": "paragraph", "text": "Strong year overall" }
+    ]
+  },
+  "operations": "insert-section-with-bullets.otk",
+  "expected": {
+    "body": [
+      { "type": "heading", "level": 1, "text": "Report Title" },
+      { "type": "paragraph", "text": "Introduction text" },
+      { "type": "heading", "level": 2, "text": "Goals" },
+      { "type": "paragraph", "text": "Enable AI agents to author documents", "style": "ListBullet" },
+      { "type": "paragraph", "text": "Provide a deterministic operation language", "style": "ListBullet" },
+      { "type": "paragraph", "text": "Support real-time editing via CLI", "style": "ListBullet" },
+      { "type": "heading", "level": 2, "text": "Financial Summary" },
+      { "type": "paragraph", "text": "Revenue grew 29%" },
+      { "type": "heading", "level": 2, "text": "Conclusion" },
+      { "type": "paragraph", "text": "Strong year overall" }
+    ]
+  },
+  "isValid": true
+}
