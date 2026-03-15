@@ -1,6 +1,10 @@
 using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Drawing.Wordprocessing;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
+using A = DocumentFormat.OpenXml.Drawing;
+using DW = DocumentFormat.OpenXml.Drawing.Wordprocessing;
+using PIC = DocumentFormat.OpenXml.Drawing.Pictures;
 
 namespace OfficeTalkEngine.Tests.TestCases;
 
@@ -64,7 +68,22 @@ public static class TestDocumentBuilder
                             new SectionProperties()));
                     body.AppendChild(sbPara);
                     break;
+                case "image":
+                    body.AppendChild(MakeImageParagraph(mainPart, element.Alt ?? "image", ref nextBookmarkId));
+                    break;
             }
+        }
+
+        // Add header/footer parts if any elements define them
+        var headerElements = input.Body.Where(e => e.Type == "header").ToList();
+        if (headerElements.Count > 0)
+        {
+            AddHeaderPart(mainPart, body, headerElements[0].Text ?? "");
+        }
+        var footerElements = input.Body.Where(e => e.Type == "footer").ToList();
+        if (footerElements.Count > 0)
+        {
+            AddFooterPart(mainPart, body, footerElements[0].Text ?? "");
         }
 
         mainPart.Document.Save();
@@ -194,5 +213,93 @@ public static class TestDocumentBuilder
 
         numberingPart.Numbering = numbering;
         numberingPart.Numbering.Save();
+    }
+
+    private static Paragraph MakeImageParagraph(MainDocumentPart mainPart, string altText, ref int nextId)
+    {
+        // 1x1 white PNG
+        byte[] pngBytes = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB" +
+            "Nl7BcQAAAABJRU5ErkJggg==");
+
+        var imagePart = mainPart.AddImagePart(ImagePartType.Png);
+        using (var ms = new MemoryStream(pngBytes))
+            imagePart.FeedData(ms);
+
+        string relationshipId = mainPart.GetIdOfPart(imagePart);
+        int id = ++nextId;
+
+        var drawing = new Drawing(
+            new DW.Inline(
+                new DW.Extent { Cx = 914400, Cy = 914400 }, // 1 inch
+                new DW.EffectExtent { LeftEdge = 0, TopEdge = 0, RightEdge = 0, BottomEdge = 0 },
+                new DW.DocProperties { Id = (uint)id, Name = $"Image{id}", Description = altText },
+                new DW.NonVisualGraphicFrameDrawingProperties(
+                    new A.GraphicFrameLocks { NoChangeAspect = true }),
+                new A.Graphic(
+                    new A.GraphicData(
+                        new PIC.Picture(
+                            new PIC.NonVisualPictureProperties(
+                                new PIC.NonVisualDrawingProperties { Id = (uint)id, Name = $"Image{id}" },
+                                new PIC.NonVisualPictureDrawingProperties()),
+                            new PIC.BlipFill(
+                                new A.Blip { Embed = relationshipId },
+                                new A.Stretch(new A.FillRectangle())),
+                            new PIC.ShapeProperties(
+                                new A.Transform2D(
+                                    new A.Offset { X = 0, Y = 0 },
+                                    new A.Extents { Cx = 914400, Cy = 914400 }),
+                                new A.PresetGeometry(new A.AdjustValueList()) { Preset = A.ShapeTypeValues.Rectangle }))
+                    ) { Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture" })
+            ) { DistanceFromTop = 0, DistanceFromBottom = 0, DistanceFromLeft = 0, DistanceFromRight = 0 });
+
+        return new Paragraph(new Run(drawing));
+    }
+
+    private static void AddHeaderPart(MainDocumentPart mainPart, Body body, string headerText)
+    {
+        var headerPart = mainPart.AddNewPart<HeaderPart>();
+        headerPart.Header = new Header(
+            new Paragraph(
+                new Run(new Text(headerText) { Space = SpaceProcessingModeValues.Preserve })));
+        headerPart.Header.Save();
+
+        string headerPartId = mainPart.GetIdOfPart(headerPart);
+
+        // Ensure body has SectionProperties with HeaderReference
+        var sectPr = body.Elements<SectionProperties>().FirstOrDefault();
+        if (sectPr == null)
+        {
+            sectPr = new SectionProperties();
+            body.AppendChild(sectPr);
+        }
+        sectPr.PrependChild(new HeaderReference
+        {
+            Type = HeaderFooterValues.Default,
+            Id = headerPartId
+        });
+    }
+
+    private static void AddFooterPart(MainDocumentPart mainPart, Body body, string footerText)
+    {
+        var footerPart = mainPart.AddNewPart<FooterPart>();
+        footerPart.Footer = new Footer(
+            new Paragraph(
+                new Run(new Text(footerText) { Space = SpaceProcessingModeValues.Preserve })));
+        footerPart.Footer.Save();
+
+        string footerPartId = mainPart.GetIdOfPart(footerPart);
+
+        var sectPr = body.Elements<SectionProperties>().FirstOrDefault();
+        if (sectPr == null)
+        {
+            sectPr = new SectionProperties();
+            body.AppendChild(sectPr);
+        }
+        sectPr.PrependChild(new FooterReference
+        {
+            Type = HeaderFooterValues.Default,
+            Id = footerPartId
+        });
     }
 }

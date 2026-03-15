@@ -52,7 +52,14 @@ public class WordComExecutor : IOfficeTalkExecutor
         bool hasStructuralOps = document.OperationBlocks.Any(b =>
             b.Operations.Any(op => op is InsertBeforeOperation or InsertAfterOperation or DeleteOperation));
 
-        if (hasStructuralOps)
+        // Check if any address targets a non-body story (header/footer) —
+        // snapshot mode uses doc.Range(start, end) which only works in the body story
+        bool hasNonBodyAddress = document.OperationBlocks.Any(b =>
+            b.Address.Segments.Count > 0 &&
+            (b.Address.Segments[0].Identifier.Equals("header", StringComparison.OrdinalIgnoreCase) ||
+             b.Address.Segments[0].Identifier.Equals("footer", StringComparison.OrdinalIgnoreCase)));
+
+        if (hasStructuralOps || hasNonBodyAddress)
         {
             // Sequential mode: resolve and execute each block in order.
             // Required when operations change document structure (insert/delete paragraphs)
@@ -169,6 +176,12 @@ public class WordComExecutor : IOfficeTalkExecutor
             startIndex = 1;
         }
 
+        // Handle header/footer as root segments (they aren't under body)
+        if (segments[0].Identifier.Equals("header", StringComparison.OrdinalIgnoreCase))
+            return ResolveHeaderFooterChain(doc, segments, isHeader: true);
+        if (segments[0].Identifier.Equals("footer", StringComparison.OrdinalIgnoreCase))
+            return ResolveHeaderFooterChain(doc, segments, isHeader: false);
+
         // Collect all paragraphs once for repeated use
         var allParas = GetAllParagraphs(doc);
 
@@ -284,18 +297,34 @@ public class WordComExecutor : IOfficeTalkExecutor
     {
         // Find paragraphs whose range falls within any scope range
         var paragraphs = new List<dynamic>();
-        foreach (dynamic para in doc.Paragraphs)
+        foreach (var scope in scopeRanges)
         {
-            if (IsHeading(para)) continue;
-            int paraStart = (int)para.Range.Start;
-            foreach (var scope in scopeRanges)
+            int storyType = (int)scope.StoryType;
+            if (storyType != 1)
             {
+                // Non-body story (header/footer/etc.) — iterate scope's own paragraphs.
+                // doc.Paragraphs only returns body paragraphs, so position-based matching
+                // would incorrectly match body content due to overlapping position numbers.
+                foreach (dynamic para in scope.Paragraphs)
+                {
+                    if (!IsHeading(para))
+                        paragraphs.Add(para.Range);
+                }
+            }
+            else
+            {
+                // Body story — use position-based matching against doc.Paragraphs
                 int scopeStart = (int)scope.Start;
                 int scopeEnd = (int)scope.End;
-                if (paraStart >= scopeStart && paraStart < scopeEnd)
+                foreach (dynamic para in doc.Paragraphs)
                 {
-                    paragraphs.Add(para.Range);
-                    break;
+                    if (IsHeading(para)) continue;
+                    int paraStart = (int)para.Range.Start;
+                    if (paraStart >= scopeStart && paraStart < scopeEnd)
+                    {
+                        paragraphs.Add(para.Range);
+                        break;
+                    }
                 }
             }
         }
@@ -761,6 +790,33 @@ public class WordComExecutor : IOfficeTalkExecutor
             .Where(p => !(p is KeyValuePredicate kvp && kvp.Key.Equals("type", StringComparison.OrdinalIgnoreCase)))
             .ToList();
         return ApplyRangePredicates(doc, results, remainingPredicates);
+    }
+
+    /// <summary>
+    /// Resolves header/footer as a top-level entry point, processing all remaining segments
+    /// within the header/footer scope (mirrors OpenXML ResolveHeaderFooter behavior).
+    /// </summary>
+    private static List<dynamic> ResolveHeaderFooterChain(
+        dynamic doc, List<AddressSegment> segments, bool isHeader)
+    {
+        // First resolve the header/footer ranges
+        var hfRanges = isHeader
+            ? ResolveHeaders(doc, segments[0])
+            : ResolveFooters(doc, segments[0]);
+
+        if (hfRanges.Count == 0 || segments.Count == 1)
+            return hfRanges;
+
+        // Resolve remaining child segments within the header/footer scope
+        var current = hfRanges;
+        for (int i = 1; i < segments.Count; i++)
+        {
+            current = ResolveChildSegment(doc, segments[i], current);
+            if (current.Count == 0)
+                return current;
+        }
+
+        return current;
     }
 
     private static List<dynamic> ResolveContentControls(dynamic doc, AddressSegment segment)

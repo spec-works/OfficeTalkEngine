@@ -271,6 +271,17 @@ public class WordExecutor : IOfficeTalkExecutor
         switch (operation.Target)
         {
             case DeleteTarget.Element:
+                // For inline elements (Drawing, BookmarkStart), remove the containing paragraph
+                // if it would be left empty
+                if (element is Drawing or BookmarkStart)
+                {
+                    var containingPara = element.Ancestors<Paragraph>().FirstOrDefault();
+                    if (containingPara != null)
+                    {
+                        containingPara.Remove();
+                        break;
+                    }
+                }
                 element.Remove();
                 break;
             case DeleteTarget.Row:

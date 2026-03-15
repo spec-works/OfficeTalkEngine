@@ -1,0 +1,20 @@
+{
+  "name": "image-delete",
+  "description": "DELETE an image addressed by positional index",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Before the image." },
+      { "type": "image", "alt": "Company Logo" },
+      { "type": "paragraph", "text": "After the image." }
+    ]
+  },
+  "operations": "image-delete.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "Before the image." },
+      { "type": "paragraph", "text": "After the image." }
+    ]
+  },
+  "isValid": true
+}

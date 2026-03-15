@@ -196,6 +196,45 @@ public class ParityTests : IDisposable
             comProps.Subject.Should().Be(xmlProps.Subject, "[{0}] subject", testName);
         if (xmlProps.Creator != null)
             comProps.Creator.Should().Be(xmlProps.Creator, "[{0}] author", testName);
+
+        // Compare headers
+        CompareHeadersFooters(xmlDoc, comDoc, testName);
+    }
+
+    private static void CompareHeadersFooters(
+        WordprocessingDocument xmlDoc, WordprocessingDocument comDoc, string testName)
+    {
+        var xmlHeaders = xmlDoc.MainDocumentPart?.HeaderParts.ToList() ?? new();
+        var comHeaders = comDoc.MainDocumentPart?.HeaderParts.ToList() ?? new();
+
+        if (xmlHeaders.Count == 0 && comHeaders.Count == 0)
+            return;
+
+        // Compare default header text (both should have one if test creates a header)
+        if (xmlHeaders.Count > 0 && comHeaders.Count > 0)
+        {
+            var xmlHeaderText = string.Join("", xmlHeaders[0].Header
+                .Descendants<Paragraph>()
+                .Select(p => p.InnerText));
+            var comHeaderText = string.Join("", comHeaders[0].Header
+                .Descendants<Paragraph>()
+                .Select(p => p.InnerText));
+            comHeaderText.Should().Be(xmlHeaderText, "[{0}] header text", testName);
+        }
+
+        var xmlFooters = xmlDoc.MainDocumentPart?.FooterParts.ToList() ?? new();
+        var comFooters = comDoc.MainDocumentPart?.FooterParts.ToList() ?? new();
+
+        if (xmlFooters.Count > 0 && comFooters.Count > 0)
+        {
+            var xmlFooterText = string.Join("", xmlFooters[0].Footer
+                .Descendants<Paragraph>()
+                .Select(p => p.InnerText));
+            var comFooterText = string.Join("", comFooters[0].Footer
+                .Descendants<Paragraph>()
+                .Select(p => p.InnerText));
+            comFooterText.Should().Be(xmlFooterText, "[{0}] footer text", testName);
+        }
     }
 
     private static List<DocSnapshot> ReadBody(Body body)
