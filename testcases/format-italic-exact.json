@@ -1,0 +1,17 @@
+{
+  "name": "format-italic-exact",
+  "description": "FORMAT italic on an entire paragraph",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "AI agents use OfficeTalk to edit documents." }
+    ]
+  },
+  "operations": "format-italic-exact.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "AI agents use OfficeTalk to edit documents.", "isItalic": true }
+    ]
+  },
+  "isValid": true
+}

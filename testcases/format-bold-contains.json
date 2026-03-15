@@ -1,0 +1,17 @@
+{
+  "name": "format-bold-contains",
+  "description": "FORMAT bold on an entire paragraph",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "The operations team delivered key improvements." }
+    ]
+  },
+  "operations": "format-bold-contains.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "The operations team delivered key improvements.", "isBold": true }
+    ]
+  },
+  "isValid": true
+}

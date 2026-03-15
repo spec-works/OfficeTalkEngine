@@ -1,0 +1,5 @@
+OFFICETALK/1.0
+DOCTYPE word
+
+AT body/heading[text="Financial Summary"]/paragraph[1]
+APPEND " Margins improved across all units."

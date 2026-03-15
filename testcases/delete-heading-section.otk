@@ -1,0 +1,8 @@
+OFFICETALK/1.0
+DOCTYPE word
+
+AT body/heading[text="Conclusion"]/paragraph[1]
+DELETE
+
+AT body/heading[text="Conclusion"]
+DELETE

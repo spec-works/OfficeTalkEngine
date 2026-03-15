@@ -1,0 +1,5 @@
+OFFICETALK/1.0
+DOCTYPE word
+
+AT body/heading[text="Operations"]/paragraph[1]
+REPLACE "team" WITH "squad"

@@ -45,7 +45,7 @@ public class WordComExecutor : IOfficeTalkExecutor
         dynamic doc = FindOpenDocument(wordApp, targetPath);
 
         bool hasStructuralOps = document.OperationBlocks.Any(b =>
-            b.Operations.Any(op => op is InsertBeforeOperation or InsertAfterOperation));
+            b.Operations.Any(op => op is InsertBeforeOperation or InsertAfterOperation or DeleteOperation));
 
         if (hasStructuralOps)
         {
@@ -174,12 +174,12 @@ public class WordComExecutor : IOfficeTalkExecutor
         {
             var segment = segments[i];
             bool hasMore = i < segments.Count - 1;
-            bool isFirst = (i == startIndex) || afterHeadingScope;
+            bool isFirst = (i == startIndex);
 
             // Heading-scoped section addressing
             if (segment.Identifier.Equals("heading", StringComparison.OrdinalIgnoreCase) && hasMore)
             {
-                var headings = isFirst
+                var headings = (isFirst || afterHeadingScope)
                     ? ResolveHeadingsFromAll(doc, segment, allParas)
                     : ResolveHeadingsInScope(doc, segment, current, allParas);
 
@@ -188,7 +188,7 @@ public class WordComExecutor : IOfficeTalkExecutor
                 continue;
             }
 
-            if (isFirst)
+            if (isFirst && !afterHeadingScope)
             {
                 current = ResolveRootSegment(doc, segment, allParas);
             }
@@ -874,18 +874,15 @@ public class WordComExecutor : IOfficeTalkExecutor
 
     private static void ExecuteAppend(dynamic range, AppendOperation operation)
     {
+        // Position just before the paragraph mark (¶) and insert there
         dynamic insertRange = range.Duplicate;
+        int end = (int)insertRange.End;
         string currentText = (string)(insertRange.Text ?? "");
         if (currentText.EndsWith("\r"))
-        {
-            insertRange.Start = (int)insertRange.End - 1;
-            insertRange.End = (int)insertRange.Start;
-        }
-        else
-        {
-            insertRange.Start = (int)insertRange.End;
-        }
-        insertRange.InsertAfter(operation.Content.Text);
+            end -= 1; // before the ¶
+        insertRange.Start = end;
+        insertRange.End = end;
+        insertRange.InsertBefore(operation.Content.Text);
     }
 
     private static void ExecutePrepend(dynamic range, PrependOperation operation)

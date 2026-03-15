@@ -78,7 +78,7 @@ public class WordExecutor : IOfficeTalkExecutor
         var resolver = new WordAddressResolver(wordDoc);
 
         bool hasStructuralOps = document.OperationBlocks.Any(b =>
-            b.Operations.Any(op => op is InsertBeforeOperation or InsertAfterOperation));
+            b.Operations.Any(op => op is InsertBeforeOperation or InsertAfterOperation or DeleteOperation));
 
         if (hasStructuralOps)
         {

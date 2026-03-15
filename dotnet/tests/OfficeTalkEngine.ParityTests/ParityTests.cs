@@ -167,6 +167,24 @@ public class ParityTests : IDisposable
                         "[{0}] element {1} row {2}", testName, i, r);
                 }
             }
+
+            // Per-run formatting comparison
+            if (expected.Runs.Count > 0 && actual.Runs.Count > 0)
+            {
+                // Compare bold/italic runs — normalize by concatenating adjacent runs with same formatting
+                var expectedNorm = NormalizeRuns(expected.Runs);
+                var actualNorm = NormalizeRuns(actual.Runs);
+
+                var expectedBold = expectedNorm.Where(r => r.IsBold).Select(r => r.Text).ToList();
+                var actualBold = actualNorm.Where(r => r.IsBold).Select(r => r.Text).ToList();
+                actualBold.Should().Equal(expectedBold,
+                    "[{0}] element {1} bold runs", testName, i);
+
+                var expectedItalic = expectedNorm.Where(r => r.IsItalic).Select(r => r.Text).ToList();
+                var actualItalic = actualNorm.Where(r => r.IsItalic).Select(r => r.Text).ToList();
+                actualItalic.Should().Equal(expectedItalic,
+                    "[{0}] element {1} italic runs", testName, i);
+            }
         }
 
         // Compare document properties
@@ -207,6 +225,12 @@ public class ParityTests : IDisposable
                         IsItalic = rp?.Italic != null ? (rp.Italic.Val?.Value ?? true) : null,
                         FontName = rp?.RunFonts?.Ascii?.Value,
                         FontSize = rp?.FontSize?.Val?.Value,
+                        Runs = para.Descendants<Run>().Select(r => new RunSnapshot
+                        {
+                            Text = r.InnerText,
+                            IsBold = r.RunProperties?.Bold != null && (r.RunProperties.Bold.Val?.Value ?? true),
+                            IsItalic = r.RunProperties?.Italic != null && (r.RunProperties.Italic.Val?.Value ?? true),
+                        }).Where(r => !string.IsNullOrEmpty(r.Text)).ToList(),
                     });
                     break;
 
@@ -248,6 +272,37 @@ public class ParityTests : IDisposable
         }
     }
 
+    private static List<RunSnapshot> NormalizeRuns(List<RunSnapshot> runs)
+    {
+        if (runs.Count == 0) return runs;
+        var result = new List<RunSnapshot>();
+        var current = new RunSnapshot
+        {
+            Text = runs[0].Text,
+            IsBold = runs[0].IsBold,
+            IsItalic = runs[0].IsItalic,
+        };
+        for (int i = 1; i < runs.Count; i++)
+        {
+            if (runs[i].IsBold == current.IsBold && runs[i].IsItalic == current.IsItalic)
+            {
+                current.Text += runs[i].Text;
+            }
+            else
+            {
+                result.Add(current);
+                current = new RunSnapshot
+                {
+                    Text = runs[i].Text,
+                    IsBold = runs[i].IsBold,
+                    IsItalic = runs[i].IsItalic,
+                };
+            }
+        }
+        result.Add(current);
+        return result;
+    }
+
     public void Dispose()
     {
         foreach (var f in _tempFiles)
@@ -268,5 +323,13 @@ public class ParityTests : IDisposable
         public string? FontName { get; set; }
         public string? FontSize { get; set; }
         public List<List<string>>? Rows { get; set; }
+        public List<RunSnapshot> Runs { get; set; } = new();
+    }
+
+    private class RunSnapshot
+    {
+        public string Text { get; set; } = "";
+        public bool IsBold { get; set; }
+        public bool IsItalic { get; set; }
     }
 }

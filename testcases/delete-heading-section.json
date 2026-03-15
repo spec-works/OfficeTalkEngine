@@ -1,0 +1,25 @@
+{
+  "name": "delete-heading-section",
+  "description": "DELETE a heading and its content paragraph",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "heading", "level": 1, "text": "Title" },
+      { "type": "paragraph", "text": "Intro paragraph here." },
+      { "type": "heading", "level": 2, "text": "Operations" },
+      { "type": "paragraph", "text": "The operations team delivered." },
+      { "type": "heading", "level": 2, "text": "Conclusion" },
+      { "type": "paragraph", "text": "Overall summary." }
+    ]
+  },
+  "operations": "delete-heading-section.otk",
+  "expected": {
+    "body": [
+      { "type": "heading", "level": 1, "text": "Title" },
+      { "type": "paragraph", "text": "Intro paragraph here." },
+      { "type": "heading", "level": 2, "text": "Operations" },
+      { "type": "paragraph", "text": "The operations team delivered." }
+    ]
+  },
+  "isValid": true
+}

@@ -1,0 +1,27 @@
+{
+  "name": "heading-scoped-append",
+  "description": "APPEND text to a paragraph within a heading scope",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "heading", "level": 1, "text": "Title" },
+      { "type": "paragraph", "text": "Intro paragraph here." },
+      { "type": "heading", "level": 2, "text": "Financial Summary" },
+      { "type": "paragraph", "text": "Revenue increased by 29%." },
+      { "type": "heading", "level": 2, "text": "Operations" },
+      { "type": "paragraph", "text": "The operations team delivered." }
+    ]
+  },
+  "operations": "heading-scoped-append.otk",
+  "expected": {
+    "body": [
+      { "type": "heading", "level": 1, "text": "Title" },
+      { "type": "paragraph", "text": "Intro paragraph here." },
+      { "type": "heading", "level": 2, "text": "Financial Summary" },
+      { "type": "paragraph", "text": "Revenue increased by 29%. Margins improved across all units." },
+      { "type": "heading", "level": 2, "text": "Operations" },
+      { "type": "paragraph", "text": "The operations team delivered." }
+    ]
+  },
+  "isValid": true
+}
