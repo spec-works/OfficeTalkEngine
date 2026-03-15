@@ -59,8 +59,15 @@ public class WordExecutor : IOfficeTalkExecutor
             wordDoc.Save();
         }
 
-        // Write modified content back to disk
-        File.WriteAllBytes(workingPath, memoryStream.ToArray());
+        // Write modified content back using FileMode.Open to preserve NTFS
+        // reparse points (used by OneDrive cloud files for sync tracking).
+        // File.WriteAllBytes uses FileMode.Create which destroys them.
+        var data = memoryStream.ToArray();
+        using (var fs = new FileStream(workingPath, FileMode.Open, FileAccess.Write, FileShare.None))
+        {
+            fs.Write(data, 0, data.Length);
+            fs.SetLength(data.Length);
+        }
     }
 
     /// <summary>
