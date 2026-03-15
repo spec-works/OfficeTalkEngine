@@ -44,30 +44,53 @@ public class WordComExecutor : IOfficeTalkExecutor
         dynamic wordApp = GetRunningWordInstance();
         dynamic doc = FindOpenDocument(wordApp, targetPath);
 
-        // Phase 1: Snapshot — resolve all addresses and capture range positions
-        var resolvedBlocks = new List<(OperationBlock Block, List<(int Start, int End)> Positions)>();
-        foreach (var block in document.OperationBlocks)
-        {
-            var ranges = ResolveAddress(doc, block.Address);
-            var positions = new List<(int Start, int End)>();
-            foreach (var r in ranges)
-            {
-                positions.Add(((int)r.Start, (int)r.End));
-            }
-            resolvedBlocks.Add((block, positions));
-        }
+        bool hasStructuralOps = document.OperationBlocks.Any(b =>
+            b.Operations.Any(op => op is InsertBeforeOperation or InsertAfterOperation));
 
-        // Phase 2: Execute operations in reverse order to preserve earlier positions
-        for (int i = resolvedBlocks.Count - 1; i >= 0; i--)
+        if (hasStructuralOps)
         {
-            var (block, positions) = resolvedBlocks[i];
-            for (int j = positions.Count - 1; j >= 0; j--)
+            // Sequential mode: resolve and execute each block in order.
+            // Required when operations change document structure (insert/delete paragraphs)
+            // so that subsequent addresses reflect the updated document.
+            foreach (var block in document.OperationBlocks)
             {
-                var (start, end) = positions[j];
-                dynamic range = doc.Range(start, end);
-                foreach (var operation in block.Operations)
+                var ranges = ResolveAddress(doc, block.Address);
+                foreach (var range in ranges)
                 {
-                    ExecuteOperation(doc, range, operation);
+                    foreach (var operation in block.Operations)
+                    {
+                        ExecuteOperation(doc, range, operation);
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Snapshot mode: resolve all addresses upfront, execute in reverse.
+            // Safe when operations only modify content within existing ranges.
+            var resolvedBlocks = new List<(OperationBlock Block, List<(int Start, int End)> Positions)>();
+            foreach (var block in document.OperationBlocks)
+            {
+                var ranges = ResolveAddress(doc, block.Address);
+                var positions = new List<(int Start, int End)>();
+                foreach (var r in ranges)
+                {
+                    positions.Add(((int)r.Start, (int)r.End));
+                }
+                resolvedBlocks.Add((block, positions));
+            }
+
+            for (int i = resolvedBlocks.Count - 1; i >= 0; i--)
+            {
+                var (block, positions) = resolvedBlocks[i];
+                for (int j = positions.Count - 1; j >= 0; j--)
+                {
+                    var (start, end) = positions[j];
+                    dynamic range = doc.Range(start, end);
+                    foreach (var operation in block.Operations)
+                    {
+                        ExecuteOperation(doc, range, operation);
+                    }
                 }
             }
         }
@@ -962,9 +985,11 @@ public class WordComExecutor : IOfficeTalkExecutor
 
     private static void ExecuteInsertAfter(dynamic range, InsertAfterOperation operation)
     {
+        // Collapse to end of range (= start of next paragraph), then insert
+        // the new text + paragraph break before the next paragraph's content
         dynamic insertRange = range.Duplicate;
-        insertRange.Start = (int)insertRange.End;
-        insertRange.InsertAfter("\r" + operation.Content.Text);
+        insertRange.Collapse(0); // wdCollapseEnd
+        insertRange.InsertBefore(operation.Content.Text + "\r");
     }
 
     private static void ExecuteInsertRow(dynamic doc, dynamic range, InsertRowOperation operation)

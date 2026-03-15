@@ -18,6 +18,9 @@ public static class TestDocumentBuilder
         var body = new Body();
         mainPart.Document.Body = body;
 
+        // Add style definitions so Word COM recognizes heading outline levels
+        AddStyleDefinitions(mainPart, input.Body);
+
         foreach (var element in input.Body)
         {
             switch (element.Type)
@@ -36,6 +39,60 @@ public static class TestDocumentBuilder
 
         mainPart.Document.Save();
         return (stream, doc);
+    }
+
+    private static void AddStyleDefinitions(MainDocumentPart mainPart, List<BodyElement> elements)
+    {
+        var headingLevels = elements
+            .Where(e => e.Type == "heading")
+            .Select(e => e.Level ?? 1)
+            .Distinct()
+            .ToList();
+
+        var styles = elements
+            .Where(e => e.Style != null)
+            .Select(e => e.Style!)
+            .Distinct()
+            .ToList();
+
+        if (headingLevels.Count == 0 && styles.Count == 0)
+            return;
+
+        var stylesPart = mainPart.AddNewPart<StyleDefinitionsPart>();
+        var stylesRoot = new Styles();
+
+        // Heading styles with outline levels — required for Word COM to recognize headings
+        foreach (var level in headingLevels)
+        {
+            var outlineLevel = new OutlineLevel { Val = level - 1 }; // 0-based
+            var style = new Style
+            {
+                Type = StyleValues.Paragraph,
+                StyleId = $"Heading{level}",
+                StyleName = new StyleName { Val = $"heading {level}" },
+                PrimaryStyle = new PrimaryStyle(),
+            };
+            style.AppendChild(new StyleParagraphProperties(outlineLevel));
+            stylesRoot.AppendChild(style);
+        }
+
+        // Named paragraph styles (e.g., ListBullet)
+        foreach (var styleName in styles)
+        {
+            // Skip if already added as a heading
+            if (headingLevels.Any(l => $"Heading{l}" == styleName))
+                continue;
+
+            stylesRoot.AppendChild(new Style
+            {
+                Type = StyleValues.Paragraph,
+                StyleId = styleName,
+                StyleName = new StyleName { Val = styleName },
+            });
+        }
+
+        stylesPart.Styles = stylesRoot;
+        stylesPart.Styles.Save();
     }
 
     private static Paragraph MakeParagraph(string text, string? style = null)
