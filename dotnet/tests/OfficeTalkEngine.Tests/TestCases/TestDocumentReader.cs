@@ -30,9 +30,9 @@ public static class TestDocumentReader
     {
         var body = doc.MainDocumentPart!.Document.Body!;
 
-        // Collect actual body children as OpenXmlElements (paragraphs + tables)
+        // Collect actual body children as OpenXmlElements (paragraphs + tables + content controls)
         var actualChildren = body.ChildElements
-            .Where(c => c is Paragraph or Table)
+            .Where(c => c is Paragraph or Table or SdtBlock)
             .ToList();
 
         actualChildren.Should().HaveCount(expectedBody.Count,
@@ -46,9 +46,19 @@ public static class TestDocumentReader
             switch (exp.Type)
             {
                 case "paragraph":
-                    actual.Should().BeOfType<Paragraph>(
-                        "element {0} should be a paragraph", i);
-                    AssertParagraph((Paragraph)actual, exp, i);
+                    if (actual is SdtBlock sdtBlock)
+                    {
+                        var sdtPara = sdtBlock.SdtContentBlock?.GetFirstChild<Paragraph>();
+                        sdtPara.Should().NotBeNull(
+                            "element {0} should contain a paragraph inside content control", i);
+                        AssertParagraph(sdtPara!, exp, i);
+                    }
+                    else
+                    {
+                        actual.Should().BeOfType<Paragraph>(
+                            "element {0} should be a paragraph", i);
+                        AssertParagraph((Paragraph)actual, exp, i);
+                    }
                     break;
                 case "heading":
                     actual.Should().BeOfType<Paragraph>(

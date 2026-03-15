@@ -1,0 +1,21 @@
+{
+  "name": "predicate-ends-with",
+  "description": "Filter paragraphs using ends-with predicate",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "First paragraph." },
+      { "type": "paragraph", "text": "Second paragraph!" },
+      { "type": "paragraph", "text": "Third paragraph." }
+    ]
+  },
+  "operations": "predicate-ends-with.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "First paragraph." },
+      { "type": "paragraph", "text": "UPDATED!" },
+      { "type": "paragraph", "text": "Third paragraph." }
+    ]
+  },
+  "isValid": true
+}

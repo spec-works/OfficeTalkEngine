@@ -1,0 +1,23 @@
+{
+  "name": "predicate-starts-with",
+  "description": "Filter paragraphs using starts-with predicate",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Chapter 1: Introduction" },
+      { "type": "paragraph", "text": "Some content here" },
+      { "type": "paragraph", "text": "Chapter 2: Methods" },
+      { "type": "paragraph", "text": "More content here" }
+    ]
+  },
+  "operations": "predicate-starts-with.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "Chapter 1: Introduction" },
+      { "type": "paragraph", "text": "Some content here" },
+      { "type": "paragraph", "text": "Chapter 2: Methods -- UPDATED" },
+      { "type": "paragraph", "text": "More content here" }
+    ]
+  },
+  "isValid": true
+}

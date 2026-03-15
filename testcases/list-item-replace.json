@@ -1,0 +1,23 @@
+{
+  "name": "list-item-replace",
+  "description": "SET text on a list item addressed by position",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Introduction" },
+      { "type": "paragraph", "text": "First item", "style": "ListBullet" },
+      { "type": "paragraph", "text": "Second item", "style": "ListBullet" },
+      { "type": "paragraph", "text": "Third item", "style": "ListBullet" }
+    ]
+  },
+  "operations": "list-item-replace.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "Introduction" },
+      { "type": "paragraph", "text": "First item", "style": "ListBullet" },
+      { "type": "paragraph", "text": "Updated item", "style": "ListBullet" },
+      { "type": "paragraph", "text": "Third item", "style": "ListBullet" }
+    ]
+  },
+  "isValid": true
+}

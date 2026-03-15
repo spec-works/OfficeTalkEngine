@@ -1,0 +1,21 @@
+{
+  "name": "content-control-set",
+  "description": "SET text in a content control addressed by tag",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Document Title" },
+      { "type": "content-control", "text": "Author Name", "tag": "author" },
+      { "type": "paragraph", "text": "Document body text." }
+    ]
+  },
+  "operations": "content-control-set.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "Document Title" },
+      { "type": "paragraph", "text": "Jane Doe" },
+      { "type": "paragraph", "text": "Document body text." }
+    ]
+  },
+  "isValid": true
+}

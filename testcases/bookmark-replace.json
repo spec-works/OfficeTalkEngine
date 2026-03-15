@@ -1,0 +1,21 @@
+{
+  "name": "bookmark-replace",
+  "description": "SET text on a bookmarked paragraph",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "heading", "level": 1, "text": "Report" },
+      { "type": "paragraph", "text": "This is the introduction.", "bookmarkName": "intro" },
+      { "type": "paragraph", "text": "This is the body." }
+    ]
+  },
+  "operations": "bookmark-replace.otk",
+  "expected": {
+    "body": [
+      { "type": "heading", "level": 1, "text": "Report" },
+      { "type": "paragraph", "text": "Updated introduction." },
+      { "type": "paragraph", "text": "This is the body." }
+    ]
+  },
+  "isValid": true
+}

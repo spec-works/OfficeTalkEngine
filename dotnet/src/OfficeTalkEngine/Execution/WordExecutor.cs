@@ -200,6 +200,40 @@ public class WordExecutor : IOfficeTalkExecutor
             var run = new Run(new Text(operation.Content.Text) { Space = SpaceProcessingModeValues.Preserve });
             cellParagraph.AppendChild(run);
         }
+        else if (element is BookmarkStart bookmarkStart)
+        {
+            var para = bookmarkStart.Parent as Paragraph;
+            if (para != null)
+            {
+                para.RemoveAllChildren<Run>();
+                var run = new Run(new Text(operation.Content.Text) { Space = SpaceProcessingModeValues.Preserve });
+                para.AppendChild(run);
+            }
+        }
+        else if (element is SdtBlock sdtBlock)
+        {
+            var contentBlock = sdtBlock.SdtContentBlock;
+            if (contentBlock != null)
+            {
+                var para = contentBlock.GetFirstChild<Paragraph>();
+                if (para != null)
+                {
+                    para.RemoveAllChildren<Run>();
+                    var run = new Run(new Text(operation.Content.Text) { Space = SpaceProcessingModeValues.Preserve });
+                    para.AppendChild(run);
+                }
+            }
+        }
+        else if (element is SdtRun sdtRun)
+        {
+            var contentRun = sdtRun.SdtContentRun;
+            if (contentRun != null)
+            {
+                contentRun.RemoveAllChildren<Run>();
+                var run = new Run(new Text(operation.Content.Text) { Space = SpaceProcessingModeValues.Preserve });
+                contentRun.AppendChild(run);
+            }
+        }
     }
 
     private static void ExecuteReplace(OpenXmlElement element, ReplaceOperation operation)

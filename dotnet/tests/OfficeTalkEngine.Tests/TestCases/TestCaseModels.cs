@@ -51,6 +51,15 @@ public class BodyElement
 
     [JsonPropertyName("rows")]
     public List<TableRowSpec>? Rows { get; set; }
+
+    [JsonPropertyName("bookmarkName")]
+    public string? BookmarkName { get; set; }
+
+    [JsonPropertyName("tag")]
+    public string? Tag { get; set; }
+
+    [JsonPropertyName("alt")]
+    public string? Alt { get; set; }
 }
 
 public class TableRowSpec

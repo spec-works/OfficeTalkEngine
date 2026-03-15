@@ -1,0 +1,5 @@
+OFFICETALK/1.0
+DOCTYPE word
+
+AT body/paragraph[text^="Chapter 2"]
+SET "Chapter 2: Methods -- UPDATED"

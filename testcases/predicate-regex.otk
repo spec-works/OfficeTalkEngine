@@ -1,0 +1,5 @@
+OFFICETALK/1.0
+DOCTYPE word
+
+AT body/paragraph[text~="^Item 2:"]
+SET "Item 2: Bananas -- MATCHED"

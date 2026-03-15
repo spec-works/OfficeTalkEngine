@@ -21,18 +21,48 @@ public static class TestDocumentBuilder
         // Add style definitions so Word COM recognizes heading outline levels
         AddStyleDefinitions(mainPart, input.Body);
 
+        // Add numbering definitions if list styles are used
+        if (input.Body.Any(e => e.Style == "ListBullet"))
+            AddNumberingDefinitions(mainPart);
+
+        int nextBookmarkId = 0;
+
         foreach (var element in input.Body)
         {
             switch (element.Type)
             {
                 case "paragraph":
-                    body.AppendChild(MakeParagraph(element.Text ?? "", element.Style));
+                    var para = MakeParagraph(element.Text ?? "", element.Style);
+                    if (element.BookmarkName != null)
+                    {
+                        var bmId = (nextBookmarkId++).ToString();
+                        para.PrependChild(new BookmarkStart { Name = element.BookmarkName, Id = bmId });
+                        para.AppendChild(new BookmarkEnd { Id = bmId });
+                    }
+                    body.AppendChild(para);
                     break;
                 case "heading":
                     body.AppendChild(MakeHeading(element.Text ?? "", element.Level ?? 1));
                     break;
                 case "table":
                     body.AppendChild(MakeTable(element.Rows ?? new()));
+                    break;
+                case "content-control":
+                    var sdtBlock = new SdtBlock();
+                    var sdtPr = new SdtProperties();
+                    if (element.Tag != null)
+                        sdtPr.AppendChild(new Tag { Val = element.Tag });
+                    sdtBlock.AppendChild(sdtPr);
+                    var sdtContent = new SdtContentBlock();
+                    sdtContent.AppendChild(MakeParagraph(element.Text ?? ""));
+                    sdtBlock.AppendChild(sdtContent);
+                    body.AppendChild(sdtBlock);
+                    break;
+                case "section-break":
+                    var sbPara = new Paragraph(
+                        new ParagraphProperties(
+                            new SectionProperties()));
+                    body.AppendChild(sbPara);
                     break;
             }
         }
@@ -102,8 +132,17 @@ public static class TestDocumentBuilder
 
         if (style != null)
         {
-            paragraph.PrependChild(new ParagraphProperties(
-                new ParagraphStyleId { Val = style }));
+            var paraProps = new ParagraphProperties(
+                new ParagraphStyleId { Val = style });
+
+            if (style == "ListBullet")
+            {
+                paraProps.AppendChild(new NumberingProperties(
+                    new NumberingLevelReference { Val = 0 },
+                    new NumberingId { Val = 1 }));
+            }
+
+            paragraph.PrependChild(paraProps);
         }
 
         return paragraph;
@@ -133,5 +172,27 @@ public static class TestDocumentBuilder
             table.AppendChild(tableRow);
         }
         return table;
+    }
+
+    private static void AddNumberingDefinitions(MainDocumentPart mainPart)
+    {
+        var numberingPart = mainPart.AddNewPart<NumberingDefinitionsPart>();
+        var numbering = new Numbering();
+
+        var abstractNum = new AbstractNum(
+            new Level(
+                new StartNumberingValue { Val = 1 },
+                new NumberingFormat { Val = NumberFormatValues.Bullet },
+                new LevelText { Val = "\u00B7" })
+            { LevelIndex = 0 })
+        { AbstractNumberId = 1 };
+
+        numbering.AppendChild(abstractNum);
+        numbering.AppendChild(new NumberingInstance(
+            new AbstractNumId { Val = 1 })
+        { NumberID = 1 });
+
+        numberingPart.Numbering = numbering;
+        numberingPart.Numbering.Save();
     }
 }

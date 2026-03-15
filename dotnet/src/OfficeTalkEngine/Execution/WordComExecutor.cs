@@ -31,6 +31,11 @@ public class WordComExecutor : IOfficeTalkExecutor
     private const int WdCharacter = 1;
     private const int WdParagraph = 4;
 
+    // Word WdHeaderFooterIndex constants
+    private const int WdHeaderFooterPrimary = 1;
+    private const int WdHeaderFooterFirstPage = 2;
+    private const int WdHeaderFooterEvenPages = 3;
+
     /// <summary>
     /// Executes operations against a document that is open in a running Word instance.
     /// The outputPath parameter is not supported — COM always modifies the live document.
@@ -221,6 +226,10 @@ public class WordComExecutor : IOfficeTalkExecutor
             "list" or "item" => ResolveListItems(doc, segment, allParas),
             "image" => ResolveImages(doc, segment),
             "bookmark" => ResolveBookmarks(doc, segment),
+            "section" => ResolveSections(doc, segment),
+            "header" => ResolveHeaders(doc, segment),
+            "footer" => ResolveFooters(doc, segment),
+            "content-control" => ResolveContentControls(doc, segment),
             _ => throw new NotImplementedException(
                 $"Address segment '{segment.Identifier}' is not yet supported for Word COM.")
         };
@@ -239,6 +248,9 @@ public class WordComExecutor : IOfficeTalkExecutor
             "cell" => ResolveCells(doc, segment, parentRanges),
             "run" => ResolveRuns(doc, segment, parentRanges),
             "table" => ResolveTablesInScope(doc, segment, parentRanges),
+            "image" => ResolveImagesInScope(doc, segment, parentRanges),
+            "bookmark" => ResolveBookmarksInScope(doc, segment, parentRanges),
+            "list" or "item" => ResolveListItemsInScope(doc, segment, parentRanges),
             _ => throw new NotImplementedException(
                 $"Address segment '{segment.Identifier}' is not yet supported as child for Word COM.")
         };
@@ -697,6 +709,183 @@ public class WordComExecutor : IOfficeTalkExecutor
         }
 
         return ApplyRangePredicates(doc, bookmarks, segment.Predicates);
+    }
+
+    private static List<dynamic> ResolveSections(dynamic doc, AddressSegment segment)
+    {
+        var sections = new List<dynamic>();
+        foreach (dynamic section in doc.Sections)
+        {
+            sections.Add(section.Range);
+        }
+        return ApplyRangePredicates(doc, sections, segment.Predicates);
+    }
+
+    private static List<dynamic> ResolveHeaders(dynamic doc, AddressSegment segment)
+    {
+        return ResolveHeadersFooters(doc, segment, isHeader: true);
+    }
+
+    private static List<dynamic> ResolveFooters(dynamic doc, AddressSegment segment)
+    {
+        return ResolveHeadersFooters(doc, segment, isHeader: false);
+    }
+
+    private static List<dynamic> ResolveHeadersFooters(dynamic doc, AddressSegment segment, bool isHeader)
+    {
+        var typePred = segment.Predicates.OfType<KeyValuePredicate>()
+            .FirstOrDefault(p => p.Key.Equals("type", StringComparison.OrdinalIgnoreCase));
+        string typeFilter = typePred?.Value?.ToLowerInvariant() ?? "default";
+
+        int wdIndex = typeFilter switch
+        {
+            "first" => WdHeaderFooterFirstPage,
+            "even" => WdHeaderFooterEvenPages,
+            _ => WdHeaderFooterPrimary
+        };
+
+        var results = new List<dynamic>();
+        foreach (dynamic section in doc.Sections)
+        {
+            try
+            {
+                dynamic hfCollection = isHeader ? section.Headers : section.Footers;
+                dynamic hf = hfCollection[wdIndex];
+                if ((bool)hf.Exists)
+                    results.Add(hf.Range);
+            }
+            catch { /* header/footer doesn't exist for this section */ }
+        }
+
+        var remainingPredicates = segment.Predicates
+            .Where(p => !(p is KeyValuePredicate kvp && kvp.Key.Equals("type", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        return ApplyRangePredicates(doc, results, remainingPredicates);
+    }
+
+    private static List<dynamic> ResolveContentControls(dynamic doc, AddressSegment segment)
+    {
+        var controls = new List<dynamic>();
+        foreach (dynamic cc in doc.ContentControls)
+        {
+            controls.Add(cc.Range);
+        }
+
+        var tagPred = segment.Predicates.OfType<KeyValuePredicate>()
+            .FirstOrDefault(p => p.Key.Equals("tag", StringComparison.OrdinalIgnoreCase));
+        if (tagPred != null)
+        {
+            var tagged = new List<dynamic>();
+            foreach (dynamic cc in doc.ContentControls)
+            {
+                try
+                {
+                    string tag = (string)cc.Tag;
+                    bool matches = tagPred.Operator switch
+                    {
+                        PredicateOperator.Equals => tag.Equals(tagPred.Value, StringComparison.Ordinal),
+                        PredicateOperator.AsteriskEquals => tag.Contains(tagPred.Value, StringComparison.Ordinal),
+                        PredicateOperator.CaretEquals => tag.StartsWith(tagPred.Value, StringComparison.Ordinal),
+                        PredicateOperator.DollarEquals => tag.EndsWith(tagPred.Value, StringComparison.Ordinal),
+                        _ => false
+                    };
+                    if (matches) tagged.Add(cc.Range);
+                }
+                catch { }
+            }
+            var remainingPredicates = segment.Predicates
+                .Where(p => !(p is KeyValuePredicate kvp && kvp.Key.Equals("tag", StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+            return ApplyRangePredicates(doc, tagged, remainingPredicates);
+        }
+
+        var barePred = segment.Predicates.OfType<BareStringPredicate>().FirstOrDefault();
+        if (barePred != null)
+        {
+            var tagged = new List<dynamic>();
+            foreach (dynamic cc in doc.ContentControls)
+            {
+                try
+                {
+                    string tag = (string)cc.Tag;
+                    if (tag.Equals(barePred.Value, StringComparison.OrdinalIgnoreCase))
+                        tagged.Add(cc.Range);
+                }
+                catch { }
+            }
+            return tagged;
+        }
+
+        return ApplyRangePredicates(doc, controls, segment.Predicates);
+    }
+
+    private static List<dynamic> ResolveImagesInScope(
+        dynamic doc, AddressSegment segment, List<dynamic> parentRanges)
+    {
+        var images = new List<dynamic>();
+        foreach (var parentRange in parentRanges)
+        {
+            foreach (dynamic shape in parentRange.InlineShapes)
+            {
+                images.Add(shape.Range);
+            }
+        }
+        return ApplyRangePredicates(doc, images, segment.Predicates);
+    }
+
+    private static List<dynamic> ResolveBookmarksInScope(
+        dynamic doc, AddressSegment segment, List<dynamic> parentRanges)
+    {
+        var bookmarks = new List<dynamic>();
+        foreach (var parentRange in parentRanges)
+        {
+            foreach (dynamic bm in parentRange.Bookmarks)
+            {
+                string name = (string)bm.Name;
+                if (!name.StartsWith("_"))
+                    bookmarks.Add(bm.Range);
+            }
+        }
+
+        var barePred = segment.Predicates.OfType<BareStringPredicate>().FirstOrDefault();
+        if (barePred != null)
+        {
+            var named = bookmarks.Where(r =>
+            {
+                try { return ((string)r.Bookmarks[barePred.Value].Name) == barePred.Value; }
+                catch { return false; }
+            }).ToList();
+            if (named.Count > 0) return named;
+
+            try
+            {
+                dynamic bm = doc.Bookmarks[barePred.Value];
+                return new List<dynamic> { bm.Range };
+            }
+            catch { return new List<dynamic>(); }
+        }
+
+        return ApplyRangePredicates(doc, bookmarks, segment.Predicates);
+    }
+
+    private static List<dynamic> ResolveListItemsInScope(
+        dynamic doc, AddressSegment segment, List<dynamic> parentRanges)
+    {
+        var items = new List<dynamic>();
+        foreach (var parentRange in parentRanges)
+        {
+            foreach (dynamic para in parentRange.Paragraphs)
+            {
+                try
+                {
+                    dynamic listFormat = para.Range.ListFormat;
+                    if ((int)listFormat.ListType != 0)
+                        items.Add(para.Range);
+                }
+                catch { }
+            }
+        }
+        return ApplyRangePredicates(doc, items, segment.Predicates);
     }
 
     #endregion

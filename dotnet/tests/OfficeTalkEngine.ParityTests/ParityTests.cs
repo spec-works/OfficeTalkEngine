@@ -244,6 +244,40 @@ public class ParityTests : IDisposable
                             .ToList(),
                     });
                     break;
+
+                case SdtBlock sdt:
+                    var sdtContent = sdt.SdtContentBlock;
+                    if (sdtContent != null)
+                    {
+                        foreach (var sdtChild in sdtContent.ChildElements)
+                        {
+                            if (sdtChild is Paragraph sdtPara)
+                            {
+                                var sdtText = sdtPara.InnerText;
+                                var sdtStyleId = sdtPara.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
+                                var sdtFirstRun = sdtPara.Descendants<Run>().FirstOrDefault();
+                                var sdtRp = sdtFirstRun?.RunProperties;
+
+                                result.Add(new DocSnapshot
+                                {
+                                    Type = "paragraph",
+                                    Text = sdtText,
+                                    StyleId = sdtStyleId,
+                                    IsBold = sdtRp?.Bold != null ? (sdtRp.Bold.Val?.Value ?? true) : null,
+                                    IsItalic = sdtRp?.Italic != null ? (sdtRp.Italic.Val?.Value ?? true) : null,
+                                    FontName = sdtRp?.RunFonts?.Ascii?.Value,
+                                    FontSize = sdtRp?.FontSize?.Val?.Value,
+                                    Runs = sdtPara.Descendants<Run>().Select(r => new RunSnapshot
+                                    {
+                                        Text = r.InnerText,
+                                        IsBold = r.RunProperties?.Bold != null && (r.RunProperties.Bold.Val?.Value ?? true),
+                                        IsItalic = r.RunProperties?.Italic != null && (r.RunProperties.Italic.Val?.Value ?? true),
+                                    }).Where(r => !string.IsNullOrEmpty(r.Text)).ToList(),
+                                });
+                            }
+                        }
+                    }
+                    break;
             }
         }
         return result;

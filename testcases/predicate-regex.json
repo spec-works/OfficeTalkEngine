@@ -1,0 +1,23 @@
+{
+  "name": "predicate-regex",
+  "description": "Filter paragraphs using regex predicate",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Item 1: Apples" },
+      { "type": "paragraph", "text": "Item 2: Bananas" },
+      { "type": "paragraph", "text": "Item 10: Cherries" },
+      { "type": "paragraph", "text": "Not an item" }
+    ]
+  },
+  "operations": "predicate-regex.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "Item 1: Apples" },
+      { "type": "paragraph", "text": "Item 2: Bananas -- MATCHED" },
+      { "type": "paragraph", "text": "Item 10: Cherries" },
+      { "type": "paragraph", "text": "Not an item" }
+    ]
+  },
+  "isValid": true
+}
