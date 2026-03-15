@@ -401,7 +401,7 @@ public class WordExecutor : IOfficeTalkExecutor
                         break;
                     case "color":
                         runProps ??= new RunProperties();
-                        runProps.Color = new Color { Val = strValue.TrimStart('#') };
+                        runProps.Color = new Color { Val = ResolveColorHex(strValue) };
                         break;
 
                     // Paragraph properties
@@ -506,7 +506,7 @@ public class WordExecutor : IOfficeTalkExecutor
                         break;
                     case "color":
                         runProps ??= new RunProperties();
-                        runProps.Color = new Color { Val = strValue.TrimStart('#') };
+                        runProps.Color = new Color { Val = ResolveColorHex(strValue) };
                         break;
                 }
             }
@@ -573,6 +573,27 @@ public class WordExecutor : IOfficeTalkExecutor
         }
 
         return double.TryParse(trimmed, out points);
+    }
+
+    /// <summary>
+    /// Resolves a color value (named or hex) to a 6-digit hex string for OpenXML.
+    /// </summary>
+    private static string ResolveColorHex(string color)
+    {
+        var hex = color.Trim().ToLowerInvariant() switch
+        {
+            "black" => "000000",
+            "red" => "FF0000",
+            "green" => "008000",
+            "blue" => "0000FF",
+            "white" => "FFFFFF",
+            "yellow" => "FFFF00",
+            "orange" => "FFA500",
+            "purple" => "800080",
+            "gray" or "grey" => "808080",
+            _ => color.TrimStart('#')
+        };
+        return hex;
     }
 
     private static void ExecuteInsertBefore(OpenXmlElement element, InsertBeforeOperation operation)

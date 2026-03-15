@@ -1499,6 +1499,23 @@ public class WordComExecutor : IOfficeTalkExecutor
 
     private static int ParseColorToRgb(string color)
     {
+        // Named colors
+        var named = color.Trim().ToLowerInvariant() switch
+        {
+            "black" => (0, 0, 0),
+            "red" => (255, 0, 0),
+            "green" => (0, 128, 0),
+            "blue" => (0, 0, 255),
+            "white" => (255, 255, 255),
+            "yellow" => (255, 255, 0),
+            "orange" => (255, 165, 0),
+            "purple" => (128, 0, 128),
+            "gray" or "grey" => (128, 128, 128),
+            _ => (-1, -1, -1)
+        };
+        if (named.Item1 >= 0)
+            return named.Item1 | (named.Item2 << 8) | (named.Item3 << 16);
+
         var hex = color.TrimStart('#');
         if (hex.Length >= 6 && int.TryParse(hex[..6], System.Globalization.NumberStyles.HexNumber, null, out int rgb))
         {
