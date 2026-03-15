@@ -1,8 +1,8 @@
 using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml.Wordprocessing;
 using DocumentFormat.OpenXml;
 using OfficeTalk.Parsing;
 using OfficeTalkEngine.Addressing;
+using Word = DocumentFormat.OpenXml.Wordprocessing;
 
 namespace OfficeTalk.Cli.Commands;
 
@@ -47,16 +47,45 @@ public static class InspectCommand
             var parsedAddress = document.OperationBlocks[0].Address;
 
             // Resolve against target document
-            // Open with FileShare.ReadWrite so we can inspect even if Word has the file open
+            // Open with FileShare.ReadWrite so we can inspect even if the app has the file open
             using var memoryStream = new MemoryStream();
             using (var fs = new FileStream(target.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
                 fs.CopyTo(memoryStream);
             }
             memoryStream.Position = 0;
-            using var wordDoc = WordprocessingDocument.Open(memoryStream, false);
-            var resolver = new WordAddressResolver(wordDoc);
-            var elements = resolver.Resolve(parsedAddress);
+
+            var extension = Path.GetExtension(target.FullName).ToLowerInvariant();
+            IReadOnlyList<OpenXmlElement> elements;
+            WordprocessingDocument? wordDoc = null;
+
+            switch (extension)
+            {
+                case ".docx" or ".docm":
+                {
+                    wordDoc = WordprocessingDocument.Open(memoryStream, false);
+                    var resolver = new WordAddressResolver(wordDoc);
+                    elements = resolver.Resolve(parsedAddress);
+                    break;
+                }
+                case ".xlsx" or ".xlsm":
+                {
+                    using var spreadsheetDoc = SpreadsheetDocument.Open(memoryStream, false);
+                    var resolver = new ExcelAddressResolver(spreadsheetDoc);
+                    elements = resolver.Resolve(parsedAddress);
+                    break;
+                }
+                case ".pptx" or ".pptm":
+                {
+                    using var presentationDoc = PresentationDocument.Open(memoryStream, false);
+                    var resolver = new PowerPointAddressResolver(presentationDoc);
+                    elements = resolver.Resolve(parsedAddress);
+                    break;
+                }
+                default:
+                    Console.Error.WriteLine($"Error: Unsupported file type '{extension}'.");
+                    return 1;
+            }
 
             Console.WriteLine($"Address: {parsedAddress}");
             Console.WriteLine($"Matched: {elements.Count} element(s)");
@@ -70,8 +99,8 @@ public static class InspectCommand
 
             Console.WriteLine();
 
-            // Get all body children for position tracking
-            var bodyChildren = wordDoc.MainDocumentPart?.Document?.Body?.ChildElements
+            // Get body children for position tracking (Word only)
+            var bodyChildren = wordDoc?.MainDocumentPart?.Document?.Body?.ChildElements
                 .OfType<OpenXmlElement>()
                 .ToList() ?? new List<OpenXmlElement>();
 
@@ -80,6 +109,8 @@ public static class InspectCommand
                 var element = elements[i];
                 PrintElement(i + 1, element, bodyChildren, context, wordDoc);
             }
+
+            wordDoc?.Dispose();
 
             return 0;
         }
@@ -96,12 +127,12 @@ public static class InspectCommand
         }
     }
 
-    private static void PrintElement(int index, OpenXmlElement element, List<OpenXmlElement> bodyChildren, int context, WordprocessingDocument wordDoc)
+    private static void PrintElement(int index, OpenXmlElement element, List<OpenXmlElement> bodyChildren, int context, WordprocessingDocument? wordDoc)
     {
         var text = element.InnerText;
         var truncatedText = text.Length > 80 ? text[..80] + "..." : text;
 
-        if (element is Paragraph paragraph)
+        if (element is Word.Paragraph paragraph)
         {
             var level = GetHeadingLevel(paragraph);
             var styleName = GetStyleName(paragraph);
@@ -123,23 +154,23 @@ public static class InspectCommand
             if (position > 0)
                 Console.WriteLine($"      Position: paragraph {position} of {totalParagraphs}");
         }
-        else if (element is Table)
+        else if (element is Word.Table)
         {
             var position = bodyChildren.IndexOf(element) + 1;
-            var rowCount = element.Elements<TableRow>().Count();
+            var rowCount = element.Elements<Word.TableRow>().Count();
             Console.WriteLine($"  [{index}] Table");
             Console.WriteLine($"      Rows: {rowCount}");
             if (position > 0)
                 Console.WriteLine($"      Position: element {position} of {bodyChildren.Count}");
         }
-        else if (element is TableRow row)
+        else if (element is Word.TableRow row)
         {
-            var cellCount = row.Elements<TableCell>().Count();
+            var cellCount = row.Elements<Word.TableCell>().Count();
             Console.WriteLine($"  [{index}] Table Row");
             Console.WriteLine($"      Cells: {cellCount}");
             Console.WriteLine($"      Text: \"{truncatedText}\"");
         }
-        else if (element is TableCell)
+        else if (element is Word.TableCell)
         {
             Console.WriteLine($"  [{index}] Table Cell");
             Console.WriteLine($"      Text: \"{truncatedText}\"");
@@ -150,8 +181,9 @@ public static class InspectCommand
             Console.WriteLine($"      Text: \"{truncatedText}\"");
         }
 
-        // Show associated comments
-        PrintAssociatedComments(element, wordDoc);
+        // Show associated comments (Word documents only)
+        if (wordDoc != null)
+            PrintAssociatedComments(element, wordDoc);
 
         // Show context elements
         if (context > 0)
@@ -182,11 +214,9 @@ public static class InspectCommand
 
     private static void PrintAssociatedComments(OpenXmlElement element, WordprocessingDocument wordDoc)
     {
-        // Find CommentRangeStart IDs within or as siblings of this element
         var commentIds = new HashSet<string>();
 
-        // Check for comment ranges inside the element
-        foreach (var rangeStart in element.Descendants<CommentRangeStart>())
+        foreach (var rangeStart in element.Descendants<Word.CommentRangeStart>())
         {
             if (rangeStart.Id?.Value is string id)
                 commentIds.Add(id);
@@ -194,11 +224,10 @@ public static class InspectCommand
 
         if (commentIds.Count == 0) return;
 
-        // Look up comments by ID from the document's comments part
         var commentsPart = wordDoc.MainDocumentPart?.WordprocessingCommentsPart;
         if (commentsPart?.Comments == null) return;
 
-        var commentMap = commentsPart.Comments.Elements<Comment>()
+        var commentMap = commentsPart.Comments.Elements<Word.Comment>()
             .Where(c => c.Id?.Value != null)
             .ToDictionary(c => c.Id!.Value!, c => c);
 
@@ -211,12 +240,12 @@ public static class InspectCommand
                 var truncated = commentText.Length > 60
                     ? commentText[..60] + "..."
                     : commentText;
-                Console.WriteLine($"      💬 Comment (by {author}): \"{truncated}\"");
+                Console.WriteLine($"      \U0001F4AC Comment (by {author}): \"{truncated}\"");
             }
         }
     }
 
-    private static int GetHeadingLevel(Paragraph paragraph)
+    private static int GetHeadingLevel(Word.Paragraph paragraph)
     {
         var styleId = paragraph.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
         if (string.IsNullOrEmpty(styleId))
@@ -239,7 +268,7 @@ public static class InspectCommand
         return 0;
     }
 
-    private static string? GetStyleName(Paragraph paragraph)
+    private static string? GetStyleName(Word.Paragraph paragraph)
     {
         return paragraph.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
     }

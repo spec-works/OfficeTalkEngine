@@ -157,26 +157,44 @@ public static class ApplyCommand
                 return 0;
             }
 
-            // Choose executor: if on Windows and Word has the target open, use COM
+            // Choose executor based on file extension and runtime conditions
             IOfficeTalkExecutor executor;
-            bool useCom = false;
+            var extension = Path.GetExtension(target.FullName).ToLowerInvariant();
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && outputPath == null)
+            switch (extension)
             {
-                useCom = WordComExecutor.IsAvailable(target.FullName);
-            }
+                case ".docx" or ".docm":
+                    bool useCom = false;
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && outputPath == null)
+                    {
+                        useCom = WordComExecutor.IsAvailable(target.FullName);
+                    }
 
-            if (useCom)
-            {
-                if (verbose)
-                    Console.WriteLine("Word is open with target document \u2014 using COM executor.");
+                    if (useCom)
+                    {
+                        if (verbose)
+                            Console.WriteLine("Word is open with target document \u2014 using COM executor.");
 #pragma warning disable CA1416 // Platform compatibility (guarded by IsOSPlatform check above)
-                executor = new WordComExecutor();
+                        executor = new WordComExecutor();
 #pragma warning restore CA1416
-            }
-            else
-            {
-                executor = new WordExecutor();
+                    }
+                    else
+                    {
+                        executor = new WordExecutor();
+                    }
+                    break;
+
+                case ".xlsx" or ".xlsm":
+                    executor = new ExcelExecutor();
+                    break;
+
+                case ".pptx" or ".pptm":
+                    executor = new PowerPointExecutor();
+                    break;
+
+                default:
+                    Console.Error.WriteLine($"Error: Unsupported file type '{extension}'. Supported: .docx, .xlsx, .pptx");
+                    return 1;
             }
 
             executor.Execute(document, target.FullName, outputPath);
