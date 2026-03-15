@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using OfficeTalk.Ast;
 using OfficeTalk.Parsing;
 using OfficeTalk.Validation;
@@ -156,8 +157,28 @@ public static class ApplyCommand
                 return 0;
             }
 
-            // Execute
-            var executor = new WordExecutor();
+            // Choose executor: if on Windows and Word has the target open, use COM
+            IOfficeTalkExecutor executor;
+            bool useCom = false;
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && outputPath == null)
+            {
+                useCom = WordComExecutor.IsAvailable(target.FullName);
+            }
+
+            if (useCom)
+            {
+                if (verbose)
+                    Console.WriteLine("Word is open with target document \u2014 using COM executor.");
+#pragma warning disable CA1416 // Platform compatibility (guarded by IsOSPlatform check above)
+                executor = new WordComExecutor();
+#pragma warning restore CA1416
+            }
+            else
+            {
+                executor = new WordExecutor();
+            }
+
             executor.Execute(document, target.FullName, outputPath);
 
             var totalOps = document.OperationBlocks.Sum(b => b.Operations.Count);
