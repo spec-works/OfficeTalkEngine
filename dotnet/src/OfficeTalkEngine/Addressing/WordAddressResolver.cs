@@ -46,21 +46,26 @@ public class WordAddressResolver : IAddressResolver
         if (segments[0].Identifier.Equals("footer", StringComparison.OrdinalIgnoreCase))
             return ResolveHeaderFooter(segments, isHeader: false);
 
+        bool afterHeadingScope = false;
         for (int i = startIndex; i < segments.Count; i++)
         {
             var segment = segments[i];
             bool hasMoreSegments = i < segments.Count - 1;
+            // After a heading scope, the context contains body-level sibling elements,
+            // so subsequent segments must treat them as root-level context.
+            bool isRootContext = (i == startIndex) || afterHeadingScope;
 
             // Heading-scoped section addressing: when heading is non-terminal,
             // resolve it as a section scope rather than the heading element itself.
             if (segment.Identifier.Equals("heading", StringComparison.OrdinalIgnoreCase) && hasMoreSegments)
             {
-                current = ResolveHeadingSectionScope(segment, current, isRoot: i == startIndex);
-                // current is now the body-level elements within the heading's section scope
+                current = ResolveHeadingSectionScope(segment, current, isRoot: isRootContext);
+                afterHeadingScope = true;
                 continue;
             }
 
-            current = ResolveSegment(segment, current, isRoot: i == startIndex);
+            current = ResolveSegment(segment, current, isRoot: isRootContext);
+            afterHeadingScope = false;
 
             if (current.Count == 0)
                 return current;
