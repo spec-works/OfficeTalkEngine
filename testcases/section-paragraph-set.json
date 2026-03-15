@@ -1,0 +1,23 @@
+{
+  "description": "SET text on a paragraph within a specific section",
+  "operations": "section-paragraph-set.otk",
+  "isValid": true,
+  "input": {
+    "body": [
+      { "type": "paragraph", "text": "Section one paragraph one." },
+      { "type": "paragraph", "text": "Section one paragraph two." },
+      { "type": "section-break" },
+      { "type": "paragraph", "text": "Section two paragraph one." },
+      { "type": "paragraph", "text": "Section two paragraph two." }
+    ]
+  },
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "Section one paragraph one." },
+      { "type": "paragraph", "text": "Section one paragraph two." },
+      { "type": "paragraph", "text": "" },
+      { "type": "paragraph", "text": "Replaced in section two." },
+      { "type": "paragraph", "text": "Section two paragraph two." }
+    ]
+  }
+}

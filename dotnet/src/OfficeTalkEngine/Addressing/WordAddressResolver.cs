@@ -64,6 +64,15 @@ public class WordAddressResolver : IAddressResolver
                 continue;
             }
 
+            // Section scope: when section is non-terminal, resolve as a content scope
+            // so child segments are resolved within the section's body children.
+            if (segment.Identifier.Equals("section", StringComparison.OrdinalIgnoreCase) && hasMoreSegments)
+            {
+                current = ResolveSectionScope(segment);
+                afterHeadingScope = true; // section scope produces root-level body children
+                continue;
+            }
+
             current = ResolveSegment(segment, current, isRoot: isRootContext);
             afterHeadingScope = false;
 
@@ -580,26 +589,75 @@ public class WordAddressResolver : IAddressResolver
 
     private IReadOnlyList<OpenXmlElement> ResolveSections(AddressSegment segment)
     {
-        // Word sections are defined by SectionProperties at the end of the last paragraph
-        // in each section, plus the final section in Body.SectionProperties.
+        // Return all body children belonging to matched sections.
+        // This aligns with COM semantics where section.Range spans the full content.
+        return ResolveSectionScope(segment);
+    }
+
+    /// <summary>
+    /// Resolves section as a content scope — returns body children grouped by section,
+    /// with predicates applied at the section level. Sections are delimited by paragraphs
+    /// containing SectionProperties (section breaks); the final section ends at body's SectionProperties.
+    /// </summary>
+    private IReadOnlyList<OpenXmlElement> ResolveSectionScope(AddressSegment segment)
+    {
         var body = _document.MainDocumentPart?.Document?.Body;
         if (body == null) return Array.Empty<OpenXmlElement>();
 
-        // Collect SectionProperties from paragraph properties (section breaks)
-        var sections = new List<OpenXmlElement>();
-        foreach (var para in body.Elements<Paragraph>())
+        var bodyChildren = body.ChildElements.OfType<OpenXmlElement>().ToList();
+
+        // Group body children into sections based on section break boundaries
+        var sectionGroups = new List<List<OpenXmlElement>>();
+        var currentGroup = new List<OpenXmlElement>();
+
+        foreach (var child in bodyChildren)
         {
-            var sectPr = para.ParagraphProperties?.Elements<SectionProperties>().FirstOrDefault();
-            if (sectPr != null)
-                sections.Add(para);
+            // Skip the body-level SectionProperties element (it defines the last section's layout)
+            if (child is SectionProperties) continue;
+
+            currentGroup.Add(child);
+
+            // A paragraph with SectionProperties in its ParagraphProperties marks
+            // the end of a section (it's the section break paragraph)
+            if (child is Paragraph para &&
+                para.ParagraphProperties?.Elements<SectionProperties>().Any() == true)
+            {
+                sectionGroups.Add(currentGroup);
+                currentGroup = new List<OpenXmlElement>();
+            }
         }
 
-        // The final section is represented by body's SectionProperties
-        var bodySectPr = body.Elements<SectionProperties>().FirstOrDefault();
-        if (bodySectPr != null)
-            sections.Add(bodySectPr);
+        // Remaining elements belong to the final section
+        if (currentGroup.Count > 0)
+            sectionGroups.Add(currentGroup);
 
-        return ApplyPredicates(sections, segment.Predicates);
+        // Apply positional predicates at the section group level
+        var selectedGroups = ApplyGroupPredicates(sectionGroups, segment.Predicates);
+
+        // Flatten selected sections' body children
+        return selectedGroups.SelectMany(g => g).ToList();
+    }
+
+    /// <summary>
+    /// Applies predicates to groups (e.g., section groups) where the positional predicate
+    /// selects which group, not which element within a group.
+    /// </summary>
+    private static List<List<OpenXmlElement>> ApplyGroupPredicates(
+        List<List<OpenXmlElement>> groups, List<Predicate> predicates)
+    {
+        var result = groups;
+        foreach (var predicate in predicates)
+        {
+            if (predicate is PositionalPredicate pos)
+            {
+                int index = pos.Position - 1;
+                if (index >= 0 && index < result.Count)
+                    result = new List<List<OpenXmlElement>> { result[index] };
+                else
+                    return new List<List<OpenXmlElement>>();
+            }
+        }
+        return result;
     }
 
     private IReadOnlyList<OpenXmlElement> ResolveBookmarks(

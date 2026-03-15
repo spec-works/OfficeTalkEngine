@@ -1,0 +1,5 @@
+OFFICETALK/1.0
+DOCTYPE word
+
+AT section[2]/paragraph[1]
+SET "Replaced in section two."
