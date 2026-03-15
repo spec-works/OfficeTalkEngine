@@ -1,0 +1,11 @@
+OFFICETALK/1.0
+DOCTYPE word
+
+AT body/paragraph[1]
+INSERT AFTER "Item one"
+
+AT body/paragraph[2]
+INSERT AFTER "Item two"
+
+AT body/paragraph[3]
+INSERT AFTER "Item three"

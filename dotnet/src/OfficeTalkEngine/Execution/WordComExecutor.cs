@@ -897,22 +897,42 @@ public class WordComExecutor : IOfficeTalkExecutor
 
     private static void ExecuteStyle(dynamic range, StyleOperation operation)
     {
-        try
+        // Try the style name as given, then with spaces inserted before capitals
+        // (e.g., "Heading2" → "Heading 2"), then with spaces removed.
+        // Word COM expects display names, but OTK may use OpenXML style IDs.
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            range.Style = operation.StyleName;
-        }
-        catch (COMException)
+            operation.StyleName,
+            InsertSpacesBeforeCapitalsAndDigits(operation.StyleName),
+            operation.StyleName.Replace(" ", ""),
+        };
+
+        foreach (var candidate in candidates)
         {
             try
             {
-                range.Style = operation.StyleName.Replace(" ", "");
+                range.Style = candidate;
+                return;
             }
-            catch (COMException ex)
-            {
-                throw new NotSupportedException(
-                    $"Style '{operation.StyleName}' not found in document.", ex);
-            }
+            catch (COMException) { }
         }
+
+        throw new NotSupportedException(
+            $"Style '{operation.StyleName}' not found in document.");
+    }
+
+    private static string InsertSpacesBeforeCapitalsAndDigits(string name)
+    {
+        // "Heading2" → "Heading 2", "ListBullet" → "List Bullet"
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < name.Length; i++)
+        {
+            if (i > 0 && (char.IsUpper(name[i]) || char.IsDigit(name[i]))
+                      && !char.IsUpper(name[i - 1]) && !char.IsDigit(name[i - 1]))
+                sb.Append(' ');
+            sb.Append(name[i]);
+        }
+        return sb.ToString();
     }
 
     private static void ExecuteFormat(dynamic range, FormatOperation operation)
@@ -985,11 +1005,19 @@ public class WordComExecutor : IOfficeTalkExecutor
 
     private static void ExecuteInsertAfter(dynamic range, InsertAfterOperation operation)
     {
-        // Collapse to end of range (= start of next paragraph), then insert
-        // the new text + paragraph break before the next paragraph's content
-        dynamic insertRange = range.Duplicate;
-        insertRange.Collapse(0); // wdCollapseEnd
-        insertRange.InsertBefore(operation.Content.Text + "\r");
+        int originalEnd = (int)range.End;
+
+        range.InsertParagraphAfter();
+
+        // Select the new paragraph's content range
+        dynamic doc = range.Document;
+        dynamic newRange = doc.Range(originalEnd, (int)range.End - 1);
+        newRange.InsertBefore(operation.Content.Text);
+
+        // Reset to Normal style — InsertParagraphAfter inherits the source
+        // paragraph's style, which may be a heading. Subsequent STYLE operations
+        // will set the correct style if needed.
+        try { newRange.Style = "Normal"; } catch { }
     }
 
     private static void ExecuteInsertRow(dynamic doc, dynamic range, InsertRowOperation operation)

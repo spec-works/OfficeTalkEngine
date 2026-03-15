@@ -1,0 +1,24 @@
+{
+  "name": "insert-after-then-style",
+  "description": "INSERT AFTER followed by STYLE on the new paragraph — the Goals pattern",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "heading", "level": 1, "text": "Report" },
+      { "type": "paragraph", "text": "Introduction text" },
+      { "type": "heading", "level": 2, "text": "Details" },
+      { "type": "paragraph", "text": "Detail content" }
+    ]
+  },
+  "operations": "insert-after-then-style.otk",
+  "expected": {
+    "body": [
+      { "type": "heading", "level": 1, "text": "Report" },
+      { "type": "paragraph", "text": "Introduction text" },
+      { "type": "heading", "level": 2, "text": "Goals" },
+      { "type": "heading", "level": 2, "text": "Details" },
+      { "type": "paragraph", "text": "Detail content" }
+    ]
+  },
+  "isValid": true
+}

@@ -1,0 +1,22 @@
+{
+  "name": "insert-after-paragraph",
+  "description": "INSERT AFTER creates a new paragraph after the target",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "heading", "level": 1, "text": "Title" },
+      { "type": "paragraph", "text": "First paragraph" },
+      { "type": "paragraph", "text": "Second paragraph" }
+    ]
+  },
+  "operations": "insert-after-paragraph.otk",
+  "expected": {
+    "body": [
+      { "type": "heading", "level": 1, "text": "Title" },
+      { "type": "paragraph", "text": "First paragraph" },
+      { "type": "paragraph", "text": "Inserted paragraph" },
+      { "type": "paragraph", "text": "Second paragraph" }
+    ]
+  },
+  "isValid": true
+}

@@ -113,18 +113,28 @@ public class ParityTests : IDisposable
         var xmlElements = ReadBody(xmlDoc.MainDocumentPart!.Document.Body!);
         var comElements = ReadBody(comDoc.MainDocumentPart!.Document.Body!);
 
-        comElements.Should().HaveCount(xmlElements.Count,
-            "[{0}] body element count mismatch", testName);
+        // Diagnostic dump on mismatch
+        if (xmlElements.Count != comElements.Count)
+        {
+            var msg = $"[{testName}] Element count: OpenXML={xmlElements.Count}, COM={comElements.Count}\n";
+            msg += "OpenXML:\n" + string.Join("\n", xmlElements.Select((e, i) => $"  [{i}] {e.Type}: \"{e.Text}\" style={e.StyleId}"));
+            msg += "\nCOM:\n" + string.Join("\n", comElements.Select((e, i) => $"  [{i}] {e.Type}: \"{e.Text}\" style={e.StyleId}"));
+            comElements.Should().HaveCount(xmlElements.Count, msg);
+        }
 
-        for (int i = 0; i < xmlElements.Count; i++)
+        for (int i = 0; i < Math.Min(xmlElements.Count, comElements.Count); i++)
         {
             var expected = xmlElements[i];
             var actual = comElements[i];
 
+            // Dump context on any mismatch
+            string ctx = $"\nOpenXML[{i}]: {expected.Type} \"{expected.Text}\" style={expected.StyleId}"
+                       + $"\nCOM[{i}]: {actual.Type} \"{actual.Text}\" style={actual.StyleId}";
+
             actual.Type.Should().Be(expected.Type,
-                "[{0}] element {1} type", testName, i);
+                "[{0}] element {1} type{2}", testName, i, ctx);
             actual.Text.Should().Be(expected.Text,
-                "[{0}] element {1} text", testName, i);
+                "[{0}] element {1} text{2}", testName, i, ctx);
 
             if (expected.StyleId != null)
                 actual.StyleId.Should().Be(expected.StyleId,

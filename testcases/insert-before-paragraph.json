@@ -1,0 +1,22 @@
+{
+  "name": "insert-before-paragraph",
+  "description": "INSERT BEFORE creates a new paragraph before the target",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "heading", "level": 1, "text": "Title" },
+      { "type": "paragraph", "text": "First paragraph" },
+      { "type": "paragraph", "text": "Second paragraph" }
+    ]
+  },
+  "operations": "insert-before-paragraph.otk",
+  "expected": {
+    "body": [
+      { "type": "heading", "level": 1, "text": "Title" },
+      { "type": "paragraph", "text": "Inserted paragraph" },
+      { "type": "paragraph", "text": "First paragraph" },
+      { "type": "paragraph", "text": "Second paragraph" }
+    ]
+  },
+  "isValid": true
+}

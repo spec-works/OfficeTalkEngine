@@ -1,0 +1,8 @@
+OFFICETALK/1.0
+DOCTYPE word
+
+AT body/paragraph[1]
+INSERT AFTER "Goals"
+
+AT body/paragraph[2]
+STYLE "Heading2"

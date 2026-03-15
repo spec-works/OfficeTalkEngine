@@ -76,21 +76,45 @@ public class WordExecutor : IOfficeTalkExecutor
     public void Execute(OfficeTalkDocument document, WordprocessingDocument wordDoc)
     {
         var resolver = new WordAddressResolver(wordDoc);
-        var resolvedBlocks = new List<(OperationBlock Block, IReadOnlyList<OpenXmlElement> Elements)>();
 
-        foreach (var block in document.OperationBlocks)
-        {
-            var elements = resolver.Resolve(block.Address);
-            resolvedBlocks.Add((block, elements));
-        }
+        bool hasStructuralOps = document.OperationBlocks.Any(b =>
+            b.Operations.Any(op => op is InsertBeforeOperation or InsertAfterOperation));
 
-        foreach (var (block, elements) in resolvedBlocks)
+        if (hasStructuralOps)
         {
-            foreach (var element in elements)
+            // Sequential mode: resolve and execute each block in order.
+            // Required when operations change document structure so that
+            // subsequent addresses reflect the updated document.
+            foreach (var block in document.OperationBlocks)
             {
-                foreach (var operation in block.Operations)
+                var elements = resolver.Resolve(block.Address);
+                foreach (var element in elements)
                 {
-                    ExecuteOperation(wordDoc, element, operation);
+                    foreach (var operation in block.Operations)
+                    {
+                        ExecuteOperation(wordDoc, element, operation);
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Snapshot mode: resolve all addresses upfront then execute.
+            var resolvedBlocks = new List<(OperationBlock Block, IReadOnlyList<OpenXmlElement> Elements)>();
+            foreach (var block in document.OperationBlocks)
+            {
+                var elements = resolver.Resolve(block.Address);
+                resolvedBlocks.Add((block, elements));
+            }
+
+            foreach (var (block, elements) in resolvedBlocks)
+            {
+                foreach (var element in elements)
+                {
+                    foreach (var operation in block.Operations)
+                    {
+                        ExecuteOperation(wordDoc, element, operation);
+                    }
                 }
             }
         }

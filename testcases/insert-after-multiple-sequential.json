@@ -1,0 +1,26 @@
+{
+  "name": "insert-after-multiple-sequential",
+  "description": "Multiple INSERT AFTER operations building a list — each references shifted indices",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "heading", "level": 1, "text": "Plan" },
+      { "type": "paragraph", "text": "Overview" },
+      { "type": "heading", "level": 2, "text": "Next Steps" },
+      { "type": "paragraph", "text": "Wrap up" }
+    ]
+  },
+  "operations": "insert-after-multiple-sequential.otk",
+  "expected": {
+    "body": [
+      { "type": "heading", "level": 1, "text": "Plan" },
+      { "type": "paragraph", "text": "Overview" },
+      { "type": "paragraph", "text": "Item one" },
+      { "type": "paragraph", "text": "Item two" },
+      { "type": "paragraph", "text": "Item three" },
+      { "type": "heading", "level": 2, "text": "Next Steps" },
+      { "type": "paragraph", "text": "Wrap up" }
+    ]
+  },
+  "isValid": true
+}
