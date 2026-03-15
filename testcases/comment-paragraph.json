@@ -1,0 +1,20 @@
+{
+  "name": "comment-paragraph",
+  "description": "COMMENT adds a document comment anchored to a paragraph",
+  "input": {
+    "type": "word",
+    "body": [
+      { "type": "paragraph", "text": "Revenue grew 29% year over year." }
+    ]
+  },
+  "operations": "comment-paragraph.otk",
+  "expected": {
+    "body": [
+      { "type": "paragraph", "text": "Revenue grew 29% year over year." }
+    ],
+    "comments": [
+      { "text": "Please review this paragraph.", "author": "OfficeTalk" }
+    ]
+  },
+  "isValid": true
+}

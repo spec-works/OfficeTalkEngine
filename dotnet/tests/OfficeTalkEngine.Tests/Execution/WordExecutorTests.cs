@@ -623,4 +623,94 @@ public class WordExecutorTests
     }
 
     #endregion
+
+    #region COMMENT Tests
+
+    [Fact]
+    public void Comment_adds_comment_to_paragraph()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("This needs review."));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("body"), Seg("paragraph", Pos(1))),
+                new CommentOperation { Content = new ContentValue("Please verify this claim.") }));
+
+        new WordExecutor().Execute(otDoc, doc);
+
+        // Verify comment was created
+        var commentsPart = doc.MainDocumentPart!.WordprocessingCommentsPart;
+        commentsPart.Should().NotBeNull("a comments part should exist");
+
+        var comments = commentsPart!.Comments.Elements<Comment>().ToList();
+        comments.Should().HaveCount(1);
+        comments[0].InnerText.Should().Be("Please verify this claim.");
+        comments[0].Author!.Value.Should().Be("OfficeTalk");
+
+        // Verify comment range markers in paragraph
+        var para = doc.MainDocumentPart!.Document.Body!.Elements<Paragraph>().First();
+        para.Descendants<CommentRangeStart>().Should().HaveCount(1);
+        para.Descendants<CommentRangeEnd>().Should().HaveCount(1);
+        para.Descendants<CommentReference>().Should().HaveCount(1);
+    }
+
+    [Fact]
+    public void Comment_multiple_on_same_paragraph_creates_distinct_comments()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Revenue grew 29% year over year."));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("body"), Seg("paragraph", Pos(1))),
+                new CommentOperation { Content = new ContentValue("Verify this number.") },
+                new CommentOperation { Content = new ContentValue("Finance team to confirm.") }));
+
+        new WordExecutor().Execute(otDoc, doc);
+
+        var comments = doc.MainDocumentPart!.WordprocessingCommentsPart!
+            .Comments.Elements<Comment>().ToList();
+        comments.Should().HaveCount(2);
+        comments[0].InnerText.Should().Be("Verify this number.");
+        comments[1].InnerText.Should().Be("Finance team to confirm.");
+
+        // IDs should be unique
+        comments[0].Id!.Value.Should().NotBe(comments[1].Id!.Value);
+    }
+
+    [Fact]
+    public void Comment_with_content_block_preserves_multiline()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("The plan calls for 20% expansion."));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("body"), Seg("paragraph", Pos(1))),
+                new CommentOperation
+                {
+                    Content = new ContentValue("Line one\nLine two\nLine three", true)
+                }));
+
+        new WordExecutor().Execute(otDoc, doc);
+
+        var comment = doc.MainDocumentPart!.WordprocessingCommentsPart!
+            .Comments.Elements<Comment>().Single();
+
+        // Each line becomes a paragraph in the comment
+        var paras = comment.Elements<Paragraph>().ToList();
+        paras.Should().HaveCount(3);
+        paras[0].InnerText.Should().Be("Line one");
+        paras[1].InnerText.Should().Be("Line two");
+        paras[2].InnerText.Should().Be("Line three");
+    }
+
+    #endregion
 }

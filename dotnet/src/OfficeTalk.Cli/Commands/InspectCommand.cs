@@ -78,7 +78,7 @@ public static class InspectCommand
             for (int i = 0; i < elements.Count; i++)
             {
                 var element = elements[i];
-                PrintElement(i + 1, element, bodyChildren, context);
+                PrintElement(i + 1, element, bodyChildren, context, wordDoc);
             }
 
             return 0;
@@ -96,7 +96,7 @@ public static class InspectCommand
         }
     }
 
-    private static void PrintElement(int index, OpenXmlElement element, List<OpenXmlElement> bodyChildren, int context)
+    private static void PrintElement(int index, OpenXmlElement element, List<OpenXmlElement> bodyChildren, int context, WordprocessingDocument wordDoc)
     {
         var text = element.InnerText;
         var truncatedText = text.Length > 80 ? text[..80] + "..." : text;
@@ -150,6 +150,9 @@ public static class InspectCommand
             Console.WriteLine($"      Text: \"{truncatedText}\"");
         }
 
+        // Show associated comments
+        PrintAssociatedComments(element, wordDoc);
+
         // Show context elements
         if (context > 0)
         {
@@ -175,6 +178,42 @@ public static class InspectCommand
         }
 
         Console.WriteLine();
+    }
+
+    private static void PrintAssociatedComments(OpenXmlElement element, WordprocessingDocument wordDoc)
+    {
+        // Find CommentRangeStart IDs within or as siblings of this element
+        var commentIds = new HashSet<string>();
+
+        // Check for comment ranges inside the element
+        foreach (var rangeStart in element.Descendants<CommentRangeStart>())
+        {
+            if (rangeStart.Id?.Value is string id)
+                commentIds.Add(id);
+        }
+
+        if (commentIds.Count == 0) return;
+
+        // Look up comments by ID from the document's comments part
+        var commentsPart = wordDoc.MainDocumentPart?.WordprocessingCommentsPart;
+        if (commentsPart?.Comments == null) return;
+
+        var commentMap = commentsPart.Comments.Elements<Comment>()
+            .Where(c => c.Id?.Value != null)
+            .ToDictionary(c => c.Id!.Value!, c => c);
+
+        foreach (var id in commentIds)
+        {
+            if (commentMap.TryGetValue(id, out var comment))
+            {
+                var author = comment.Author?.Value ?? "Unknown";
+                var commentText = comment.InnerText;
+                var truncated = commentText.Length > 60
+                    ? commentText[..60] + "..."
+                    : commentText;
+                Console.WriteLine($"      💬 Comment (by {author}): \"{truncated}\"");
+            }
+        }
     }
 
     private static int GetHeadingLevel(Paragraph paragraph)

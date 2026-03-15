@@ -24,6 +24,11 @@ public static class TestDocumentReader
         {
             AssertProperties(doc, expected.Properties);
         }
+
+        if (expected.Comments != null)
+        {
+            AssertComments(doc, expected.Comments);
+        }
     }
 
     private static void AssertBody(WordprocessingDocument doc, List<BodyElement> expectedBody)
@@ -148,6 +153,32 @@ public static class TestDocumentReader
                 case "category":
                     props.Category.Should().Be(value, "document category should match");
                     break;
+            }
+        }
+    }
+
+    private static void AssertComments(
+        WordprocessingDocument doc, List<ExpectedComment> expectedComments)
+    {
+        var commentsPart = doc.MainDocumentPart!.WordprocessingCommentsPart;
+        commentsPart.Should().NotBeNull("document should have a comments part");
+
+        var actualComments = commentsPart!.Comments.Elements<Comment>().ToList();
+        actualComments.Should().HaveCount(expectedComments.Count,
+            "document should have {0} comments", expectedComments.Count);
+
+        for (int i = 0; i < expectedComments.Count; i++)
+        {
+            var exp = expectedComments[i];
+            var actual = actualComments[i];
+
+            actual.InnerText.Should().Be(exp.Text,
+                "comment {0} text should match", i);
+
+            if (exp.Author != null)
+            {
+                actual.Author?.Value.Should().Be(exp.Author,
+                    "comment {0} author should match", i);
             }
         }
     }

@@ -169,6 +169,9 @@ public class WordExecutor : IOfficeTalkExecutor
             case SetCellsOperation setCells:
                 ExecuteSetCells(element, setCells);
                 break;
+            case CommentOperation comment:
+                ExecuteComment(wordDoc, element, comment);
+                break;
             case InsertSlideOperation:
                 throw new NotImplementedException("INSERT SLIDE operations are not supported for Word documents.");
             case DuplicateSlideOperation:
@@ -754,6 +757,96 @@ public class WordExecutor : IOfficeTalkExecutor
                 break;
             default:
                 throw new NotSupportedException($"Document property '{name}' is not supported.");
+        }
+    }
+
+    private static void ExecuteComment(
+        WordprocessingDocument wordDoc, OpenXmlElement element, CommentOperation operation)
+    {
+        var mainPart = wordDoc.MainDocumentPart
+            ?? throw new InvalidOperationException("Document has no main part.");
+
+        // Ensure comments part exists
+        var commentsPart = mainPart.WordprocessingCommentsPart;
+        if (commentsPart == null)
+        {
+            commentsPart = mainPart.AddNewPart<WordprocessingCommentsPart>();
+            commentsPart.Comments = new Comments();
+        }
+
+        var comments = commentsPart.Comments;
+
+        // Generate unique comment ID (max existing + 1, or 0)
+        int commentId = 0;
+        var existingIds = comments.Elements<Comment>()
+            .Select(c => c.Id?.Value)
+            .Where(id => id != null)
+            .Select(id => int.TryParse(id, out var n) ? n : -1)
+            .Where(n => n >= 0);
+        if (existingIds.Any())
+            commentId = existingIds.Max() + 1;
+
+        var commentIdStr = commentId.ToString();
+
+        // Create the comment element
+        var comment = new Comment
+        {
+            Id = commentIdStr,
+            Author = "OfficeTalk",
+            Date = DateTime.UtcNow
+        };
+
+        // Add comment text — split on newlines into paragraphs
+        var lines = operation.Content.Text.Split('\n');
+        foreach (var line in lines)
+        {
+            comment.AppendChild(new Paragraph(
+                new Run(new Text(line.TrimEnd('\r')) { Space = SpaceProcessingModeValues.Preserve })));
+        }
+        comments.AppendChild(comment);
+
+        // Wrap the addressed element with CommentRangeStart/End and reference
+        var rangeStart = new CommentRangeStart { Id = commentIdStr };
+        var rangeEnd = new CommentRangeEnd { Id = commentIdStr };
+
+        if (element is Run run)
+        {
+            // For runs, wrap the run itself
+            run.InsertBeforeSelf(rangeStart);
+            run.InsertAfterSelf(rangeEnd);
+            rangeEnd.InsertAfterSelf(new Run(
+                new CommentReference { Id = commentIdStr }));
+        }
+        else if (element is Paragraph para)
+        {
+            // For paragraphs, put start before first run, end before paragraph mark
+            var firstRun = para.GetFirstChild<Run>();
+            if (firstRun != null)
+                firstRun.InsertBeforeSelf(rangeStart);
+            else
+                para.PrependChild(rangeStart);
+
+            // Insert end and reference before ParagraphProperties or at end
+            var paraProps = para.GetFirstChild<ParagraphProperties>();
+            if (paraProps != null)
+            {
+                // Range markers go after properties but at end of content
+                para.AppendChild(rangeEnd);
+                para.AppendChild(new Run(new CommentReference { Id = commentIdStr }));
+            }
+            else
+            {
+                para.AppendChild(rangeEnd);
+                para.AppendChild(new Run(new CommentReference { Id = commentIdStr }));
+            }
+        }
+        else
+        {
+            // For other elements (table, row, etc.), insert before/after the element
+            element.InsertBeforeSelf(rangeStart);
+            element.InsertAfterSelf(rangeEnd);
+            rangeEnd.InsertAfterSelf(new Paragraph(
+                new Run(new CommentReference { Id = commentIdStr })));
         }
     }
 }

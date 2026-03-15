@@ -75,4 +75,16 @@ public class TestExpectedOutput
 
     [JsonPropertyName("properties")]
     public Dictionary<string, string>? Properties { get; set; }
+
+    [JsonPropertyName("comments")]
+    public List<ExpectedComment>? Comments { get; set; }
+}
+
+public class ExpectedComment
+{
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = string.Empty;
+
+    [JsonPropertyName("author")]
+    public string? Author { get; set; }
 }

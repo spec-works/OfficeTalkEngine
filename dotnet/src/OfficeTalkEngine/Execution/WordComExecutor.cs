@@ -1099,6 +1099,9 @@ public class WordComExecutor : IOfficeTalkExecutor
             case SetCellsOperation setCells:
                 ExecuteSetCells(doc, range, setCells);
                 break;
+            case CommentOperation comment:
+                ExecuteComment(doc, range, comment);
+                break;
             default:
                 throw new NotSupportedException(
                     $"Operation type '{operation.GetType().Name}' is not supported by the COM executor.");
@@ -1526,6 +1529,16 @@ public class WordComExecutor : IOfficeTalkExecutor
             return r | (g << 8) | (b << 16);
         }
         return 0;
+    }
+
+    #endregion
+
+    #region Comment Operations
+
+    private static void ExecuteComment(dynamic doc, dynamic range, CommentOperation operation)
+    {
+        // COM: range.Comments.Add(range, "text")
+        range.Comments.Add(range, operation.Content.Text);
     }
 
     #endregion
