@@ -112,8 +112,8 @@ public class WordExecutor : IOfficeTalkExecutor
             case ReplaceOperation replace:
                 ExecuteReplace(element, replace);
                 break;
-            case DeleteOperation:
-                ExecuteDelete(element);
+            case DeleteOperation delete:
+                ExecuteDelete(element, delete);
                 break;
             case AppendOperation append:
                 ExecuteAppend(element, append);
@@ -124,28 +124,35 @@ public class WordExecutor : IOfficeTalkExecutor
             case StyleOperation style:
                 ExecuteStyle(element, style);
                 break;
-            case FormatOperation:
-                throw new NotImplementedException("FORMAT operations are not yet supported.");
-            case InsertBeforeOperation:
-                throw new NotImplementedException("INSERT BEFORE operations are not yet supported.");
-            case InsertAfterOperation:
-                throw new NotImplementedException("INSERT AFTER operations are not yet supported.");
-            case InsertRowOperation:
-                throw new NotImplementedException("INSERT ROW operations are not yet supported.");
-            case InsertColumnOperation:
-                throw new NotImplementedException("INSERT COLUMN operations are not yet supported.");
-            case MergeCellsOperation:
-                throw new NotImplementedException("MERGE CELLS operations are not yet supported.");
-            case SetCellsOperation:
-                throw new NotImplementedException("SET CELLS operations are not yet supported.");
+            case FormatOperation format:
+                ExecuteFormat(element, format);
+                break;
+            case InsertBeforeOperation insertBefore:
+                ExecuteInsertBefore(element, insertBefore);
+                break;
+            case InsertAfterOperation insertAfter:
+                ExecuteInsertAfter(element, insertAfter);
+                break;
+            case InsertRowOperation insertRow:
+                ExecuteInsertRow(element, insertRow);
+                break;
+            case InsertColumnOperation insertColumn:
+                ExecuteInsertColumn(element, insertColumn);
+                break;
+            case MergeCellsOperation merge:
+                ExecuteMergeCells(element, merge);
+                break;
+            case SetCellsOperation setCells:
+                ExecuteSetCells(element, setCells);
+                break;
             case InsertSlideOperation:
-                throw new NotImplementedException("INSERT SLIDE operations are not yet supported.");
+                throw new NotImplementedException("INSERT SLIDE operations are not supported for Word documents.");
             case DuplicateSlideOperation:
-                throw new NotImplementedException("DUPLICATE SLIDE operations are not yet supported.");
+                throw new NotImplementedException("DUPLICATE SLIDE operations are not supported for Word documents.");
             case RenameSheetOperation:
-                throw new NotImplementedException("RENAME SHEET operations are not yet supported.");
+                throw new NotImplementedException("RENAME SHEET operations are not supported for Word documents.");
             case AddSheetOperation:
-                throw new NotImplementedException("ADD SHEET operations are not yet supported.");
+                throw new NotImplementedException("ADD SHEET operations are not supported for Word documents.");
             default:
                 throw new NotSupportedException($"Operation type '{operation.GetType().Name}' is not supported.");
         }
@@ -201,9 +208,38 @@ public class WordExecutor : IOfficeTalkExecutor
         }
     }
 
-    private static void ExecuteDelete(OpenXmlElement element)
+    private static void ExecuteDelete(OpenXmlElement element, DeleteOperation operation)
     {
-        element.Remove();
+        switch (operation.Target)
+        {
+            case DeleteTarget.Element:
+                element.Remove();
+                break;
+            case DeleteTarget.Row:
+                if (element is TableRow row)
+                    row.Remove();
+                else if (element.Parent is TableRow parentRow)
+                    parentRow.Remove();
+                else
+                    element.Remove();
+                break;
+            case DeleteTarget.Column:
+                // Delete a column by removing the cell at the same position from every row
+                if (element is TableCell cell && cell.Parent is TableRow cellRow && cellRow.Parent is Table table)
+                {
+                    var cellIndex = cellRow.Elements<TableCell>().ToList().IndexOf(cell);
+                    if (cellIndex >= 0)
+                    {
+                        foreach (var r in table.Elements<TableRow>().ToList())
+                        {
+                            var cells = r.Elements<TableCell>().ToList();
+                            if (cellIndex < cells.Count)
+                                cells[cellIndex].Remove();
+                        }
+                    }
+                }
+                break;
+        }
     }
 
     private static void ExecuteAppend(OpenXmlElement element, AppendOperation operation)
@@ -236,6 +272,314 @@ public class WordExecutor : IOfficeTalkExecutor
             // Normalize display name (e.g. "Heading 2") to style ID (e.g. "Heading2")
             var styleId = operation.StyleName.Replace(" ", "");
             props.ParagraphStyleId = new ParagraphStyleId { Val = styleId };
+        }
+    }
+
+    private static void ExecuteFormat(OpenXmlElement element, FormatOperation operation)
+    {
+        if (element is Paragraph paragraph)
+        {
+            var pProps = paragraph.ParagraphProperties ?? paragraph.PrependChild(new ParagraphProperties());
+
+            // Build run properties for text formatting
+            RunProperties? runProps = null;
+
+            foreach (var (key, value) in operation.Properties)
+            {
+                var strValue = value?.ToString() ?? "";
+                switch (key.ToLowerInvariant())
+                {
+                    // Text (run) properties — apply to all runs
+                    case "bold":
+                        runProps ??= new RunProperties();
+                        if (strValue.Equals("true", StringComparison.OrdinalIgnoreCase))
+                            runProps.Bold = new Bold();
+                        else
+                            runProps.Bold = new Bold { Val = false };
+                        break;
+                    case "italic":
+                        runProps ??= new RunProperties();
+                        if (strValue.Equals("true", StringComparison.OrdinalIgnoreCase))
+                            runProps.Italic = new Italic();
+                        else
+                            runProps.Italic = new Italic { Val = false };
+                        break;
+                    case "underline":
+                        runProps ??= new RunProperties();
+                        runProps.Underline = new Underline
+                        {
+                            Val = strValue.Equals("true", StringComparison.OrdinalIgnoreCase)
+                                ? UnderlineValues.Single
+                                : UnderlineValues.None
+                        };
+                        break;
+                    case "strikethrough":
+                        runProps ??= new RunProperties();
+                        runProps.Strike = new Strike
+                        {
+                            Val = strValue.Equals("true", StringComparison.OrdinalIgnoreCase)
+                        };
+                        break;
+                    case "font-name":
+                        runProps ??= new RunProperties();
+                        runProps.RunFonts = new RunFonts { Ascii = strValue, HighAnsi = strValue };
+                        break;
+                    case "font-size":
+                        runProps ??= new RunProperties();
+                        // OpenXML uses half-points
+                        if (TryParsePoints(strValue, out double pts))
+                            runProps.FontSize = new FontSize { Val = ((int)(pts * 2)).ToString() };
+                        break;
+                    case "color":
+                        runProps ??= new RunProperties();
+                        runProps.Color = new Color { Val = strValue.TrimStart('#') };
+                        break;
+
+                    // Paragraph properties
+                    case "alignment":
+                    case "align":
+                        pProps.Justification = new Justification
+                        {
+                            Val = strValue.ToLowerInvariant() switch
+                            {
+                                "left" => JustificationValues.Left,
+                                "center" => JustificationValues.Center,
+                                "right" => JustificationValues.Right,
+                                "justify" => JustificationValues.Both,
+                                _ => JustificationValues.Left
+                            }
+                        };
+                        break;
+                    case "spacing-before":
+                        var spacing = pProps.SpacingBetweenLines ?? (pProps.SpacingBetweenLines = new SpacingBetweenLines());
+                        if (TryParsePoints(strValue, out double beforePts))
+                            spacing.Before = ((int)(beforePts * 20)).ToString(); // twips
+                        break;
+                    case "spacing-after":
+                        var spacingAfter = pProps.SpacingBetweenLines ?? (pProps.SpacingBetweenLines = new SpacingBetweenLines());
+                        if (TryParsePoints(strValue, out double afterPts))
+                            spacingAfter.After = ((int)(afterPts * 20)).ToString(); // twips
+                        break;
+                    case "line-spacing":
+                        var lineSpacing = pProps.SpacingBetweenLines ?? (pProps.SpacingBetweenLines = new SpacingBetweenLines());
+                        if (TryParsePoints(strValue, out double linePts))
+                            lineSpacing.Line = ((int)(linePts * 20)).ToString();
+                        break;
+                    case "indent-left":
+                        var indent = pProps.Indentation ?? (pProps.Indentation = new Indentation());
+                        if (TryParsePoints(strValue, out double leftPts))
+                            indent.Left = ((int)(leftPts * 20)).ToString();
+                        break;
+                    case "indent-right":
+                        var indentR = pProps.Indentation ?? (pProps.Indentation = new Indentation());
+                        if (TryParsePoints(strValue, out double rightPts))
+                            indentR.Right = ((int)(rightPts * 20)).ToString();
+                        break;
+                    case "style":
+                        var sId = strValue.Replace(" ", "");
+                        pProps.ParagraphStyleId = new ParagraphStyleId { Val = sId };
+                        break;
+                }
+            }
+
+            // Apply run properties to all existing runs
+            if (runProps != null)
+            {
+                foreach (var run in paragraph.Elements<Run>())
+                {
+                    var existing = run.RunProperties ?? run.PrependChild(new RunProperties());
+                    MergeRunProperties(existing, runProps);
+                }
+            }
+        }
+        else if (element is TableCell tableCell)
+        {
+            foreach (var (key, value) in operation.Properties)
+            {
+                var strValue = value?.ToString() ?? "";
+                switch (key.ToLowerInvariant())
+                {
+                    case "fill-color":
+                    case "background-color":
+                        var tcPr = tableCell.TableCellProperties ??
+                                   tableCell.PrependChild(new TableCellProperties());
+                        tcPr.Shading = new Shading
+                        {
+                            Fill = strValue.TrimStart('#'),
+                            Val = ShadingPatternValues.Clear
+                        };
+                        break;
+                }
+            }
+        }
+    }
+
+    private static void MergeRunProperties(RunProperties target, RunProperties source)
+    {
+        if (source.Bold != null) target.Bold = (Bold)source.Bold.CloneNode(true);
+        if (source.Italic != null) target.Italic = (Italic)source.Italic.CloneNode(true);
+        if (source.Underline != null) target.Underline = (Underline)source.Underline.CloneNode(true);
+        if (source.Strike != null) target.Strike = (Strike)source.Strike.CloneNode(true);
+        if (source.RunFonts != null) target.RunFonts = (RunFonts)source.RunFonts.CloneNode(true);
+        if (source.FontSize != null) target.FontSize = (FontSize)source.FontSize.CloneNode(true);
+        if (source.Color != null) target.Color = (Color)source.Color.CloneNode(true);
+    }
+
+    private static bool TryParsePoints(string value, out double points)
+    {
+        // Strip unit suffix (pt, in, cm, mm)
+        var trimmed = value.TrimEnd();
+        if (trimmed.EndsWith("pt", StringComparison.OrdinalIgnoreCase))
+            trimmed = trimmed[..^2];
+        else if (trimmed.EndsWith("in", StringComparison.OrdinalIgnoreCase))
+        {
+            if (double.TryParse(trimmed[..^2], out double inches))
+            {
+                points = inches * 72;
+                return true;
+            }
+        }
+        else if (trimmed.EndsWith("cm", StringComparison.OrdinalIgnoreCase))
+        {
+            if (double.TryParse(trimmed[..^2], out double cm))
+            {
+                points = cm * 28.3465;
+                return true;
+            }
+        }
+
+        return double.TryParse(trimmed, out points);
+    }
+
+    private static void ExecuteInsertBefore(OpenXmlElement element, InsertBeforeOperation operation)
+    {
+        var newParagraph = CreateParagraphFromContent(operation.Content);
+        element.InsertBeforeSelf(newParagraph);
+    }
+
+    private static void ExecuteInsertAfter(OpenXmlElement element, InsertAfterOperation operation)
+    {
+        var newParagraph = CreateParagraphFromContent(operation.Content);
+        element.InsertAfterSelf(newParagraph);
+    }
+
+    private static Paragraph CreateParagraphFromContent(ContentValue content)
+    {
+        if (content.IsContentBlock)
+        {
+            // Content blocks may contain multiple lines — create paragraph with the full text
+            // Future: could split into multiple paragraphs on blank lines
+            var paragraph = new Paragraph();
+            var lines = content.Text.Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i].TrimEnd('\r');
+                if (i > 0)
+                    paragraph.AppendChild(new Run(new Break()));
+                paragraph.AppendChild(new Run(
+                    new Text(line) { Space = SpaceProcessingModeValues.Preserve }));
+            }
+            return paragraph;
+        }
+        else
+        {
+            return new Paragraph(
+                new Run(new Text(content.Text) { Space = SpaceProcessingModeValues.Preserve }));
+        }
+    }
+
+    private static void ExecuteInsertRow(OpenXmlElement element, InsertRowOperation operation)
+    {
+        if (element is not TableRow targetRow || targetRow.Parent is not Table)
+            return;
+
+        // Clone the row structure (preserving cell count and properties) but clear content
+        var newRow = (TableRow)targetRow.CloneNode(true);
+        foreach (var cell in newRow.Elements<TableCell>())
+        {
+            foreach (var p in cell.Elements<Paragraph>())
+                p.RemoveAllChildren<Run>();
+        }
+
+        if (operation.Position == InsertPosition.Before)
+            targetRow.InsertBeforeSelf(newRow);
+        else
+            targetRow.InsertAfterSelf(newRow);
+    }
+
+    private static void ExecuteInsertColumn(OpenXmlElement element, InsertColumnOperation operation)
+    {
+        // Element should be a cell; insert a new cell at the same column index in every row
+        if (element is not TableCell targetCell || targetCell.Parent is not TableRow targetRow ||
+            targetRow.Parent is not Table table)
+            return;
+
+        var cellIndex = targetRow.Elements<TableCell>().ToList().IndexOf(targetCell);
+
+        foreach (var row in table.Elements<TableRow>())
+        {
+            var cells = row.Elements<TableCell>().ToList();
+            var referenceCell = cellIndex < cells.Count ? cells[cellIndex] : cells.LastOrDefault();
+            if (referenceCell == null) continue;
+
+            // Create new cell with same properties but empty content
+            var newCell = new TableCell(new Paragraph());
+            if (referenceCell.TableCellProperties != null)
+                newCell.TableCellProperties = (TableCellProperties)referenceCell.TableCellProperties.CloneNode(true);
+
+            if (operation.Position == InsertPosition.Before)
+                referenceCell.InsertBeforeSelf(newCell);
+            else
+                referenceCell.InsertAfterSelf(newCell);
+        }
+    }
+
+    private static void ExecuteMergeCells(OpenXmlElement element, MergeCellsOperation operation)
+    {
+        // Horizontal merge: merge cells from the addressed cell to the target cell
+        if (element is not TableCell startCell || startCell.Parent is not TableRow row)
+            return;
+
+        var cells = row.Elements<TableCell>().ToList();
+        var startIndex = cells.IndexOf(startCell);
+
+        // Parse target address to find end cell index
+        // The target address is relative (e.g., "row[2]/cell[3]")
+        // For simplicity, check if it has a cell segment with positional predicate
+        var cellSegment = operation.TargetAddress.Segments
+            .FirstOrDefault(s => s.Identifier.Equals("cell", StringComparison.OrdinalIgnoreCase));
+
+        if (cellSegment == null) return;
+
+        var posPred = cellSegment.Predicates.OfType<PositionalPredicate>().FirstOrDefault();
+        if (posPred == null) return;
+
+        int endIndex = posPred.Position - 1;
+        if (endIndex <= startIndex || endIndex >= cells.Count) return;
+
+        // Apply horizontal merge
+        var startProps = startCell.TableCellProperties ?? startCell.PrependChild(new TableCellProperties());
+        startProps.HorizontalMerge = new HorizontalMerge { Val = MergedCellValues.Restart };
+
+        for (int i = startIndex + 1; i <= endIndex; i++)
+        {
+            var cellProps = cells[i].TableCellProperties ?? cells[i].PrependChild(new TableCellProperties());
+            cellProps.HorizontalMerge = new HorizontalMerge { Val = MergedCellValues.Continue };
+        }
+    }
+
+    private static void ExecuteSetCells(OpenXmlElement element, SetCellsOperation operation)
+    {
+        // SET CELLS populates cells in a row by position
+        if (element is not TableRow row) return;
+
+        var cells = row.Elements<TableCell>().ToList();
+        for (int i = 0; i < operation.Values.Count && i < cells.Count; i++)
+        {
+            var cellParagraph = cells[i].GetFirstChild<Paragraph>() ?? cells[i].AppendChild(new Paragraph());
+            cellParagraph.RemoveAllChildren<Run>();
+            cellParagraph.AppendChild(new Run(
+                new Text(operation.Values[i]) { Space = SpaceProcessingModeValues.Preserve }));
         }
     }
 
