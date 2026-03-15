@@ -416,6 +416,61 @@ public class WordExecutor : IOfficeTalkExecutor
                 }
             }
         }
+        else if (element is Run run)
+        {
+            // Apply formatting directly to this run
+            RunProperties? runProps = null;
+            foreach (var (key, value) in operation.Properties)
+            {
+                var strValue = value?.ToString() ?? "";
+                switch (key.ToLowerInvariant())
+                {
+                    case "bold":
+                        runProps ??= new RunProperties();
+                        runProps.Bold = strValue.Equals("true", StringComparison.OrdinalIgnoreCase)
+                            ? new Bold() : new Bold { Val = false };
+                        break;
+                    case "italic":
+                        runProps ??= new RunProperties();
+                        runProps.Italic = strValue.Equals("true", StringComparison.OrdinalIgnoreCase)
+                            ? new Italic() : new Italic { Val = false };
+                        break;
+                    case "underline":
+                        runProps ??= new RunProperties();
+                        runProps.Underline = new Underline
+                        {
+                            Val = strValue.Equals("true", StringComparison.OrdinalIgnoreCase)
+                                ? UnderlineValues.Single : UnderlineValues.None
+                        };
+                        break;
+                    case "strikethrough":
+                        runProps ??= new RunProperties();
+                        runProps.Strike = new Strike
+                        {
+                            Val = strValue.Equals("true", StringComparison.OrdinalIgnoreCase)
+                        };
+                        break;
+                    case "font-name":
+                        runProps ??= new RunProperties();
+                        runProps.RunFonts = new RunFonts { Ascii = strValue, HighAnsi = strValue };
+                        break;
+                    case "font-size":
+                        runProps ??= new RunProperties();
+                        if (TryParsePoints(strValue, out double runPts))
+                            runProps.FontSize = new FontSize { Val = ((int)(runPts * 2)).ToString() };
+                        break;
+                    case "color":
+                        runProps ??= new RunProperties();
+                        runProps.Color = new Color { Val = strValue.TrimStart('#') };
+                        break;
+                }
+            }
+            if (runProps != null)
+            {
+                var existing = run.RunProperties ?? run.PrependChild(new RunProperties());
+                MergeRunProperties(existing, runProps);
+            }
+        }
         else if (element is TableCell tableCell)
         {
             foreach (var (key, value) in operation.Properties)

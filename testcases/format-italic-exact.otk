@@ -1,5 +1,5 @@
 OFFICETALK/1.0
 DOCTYPE word
 
-AT body/paragraph[1]
+AT body/paragraph[1]/run[text="OfficeTalk"]
 FORMAT italic=true

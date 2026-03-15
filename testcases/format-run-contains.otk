@@ -1,5 +1,5 @@
 OFFICETALK/1.0
 DOCTYPE word
 
-AT body/paragraph[1]/run[text="team"]
+AT body/paragraph[1]/run[text*="Talk"]
 FORMAT bold=true

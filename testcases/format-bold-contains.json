@@ -1,6 +1,6 @@
 {
   "name": "format-bold-contains",
-  "description": "FORMAT bold on an entire paragraph",
+  "description": "FORMAT bold on a text span within a paragraph (run splitting)",
   "input": {
     "type": "word",
     "body": [
@@ -10,7 +10,7 @@
   "operations": "format-bold-contains.otk",
   "expected": {
     "body": [
-      { "type": "paragraph", "text": "The operations team delivered key improvements.", "isBold": true }
+      { "type": "paragraph", "text": "The operations team delivered key improvements." }
     ]
   },
   "isValid": true

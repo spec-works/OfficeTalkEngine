@@ -226,11 +226,280 @@ public class WordAddressResolver : IAddressResolver
     private static IReadOnlyList<OpenXmlElement> ResolveRuns(
         AddressSegment segment, IReadOnlyList<OpenXmlElement> context)
     {
+        // Check for a text predicate — if present, use text-span resolution
+        // which finds the text within the paragraph and splits runs to isolate it.
+        var textPred = segment.Predicates.OfType<KeyValuePredicate>()
+            .FirstOrDefault(p => p.Key.Equals("text", StringComparison.OrdinalIgnoreCase));
+
+        if (textPred != null)
+        {
+            var matches = new List<OpenXmlElement>();
+            var parents = context.SelectMany(e => e is Paragraph p
+                ? new[] { p }
+                : e.Descendants<Paragraph>()).ToList();
+
+            foreach (var para in parents)
+            {
+                var found = FindAndSplitRuns(para, textPred);
+                matches.AddRange(found);
+            }
+
+            // Apply remaining predicates (positional, etc.) excluding the text one
+            var remaining = segment.Predicates
+                .Where(p => !ReferenceEquals(p, textPred)).ToList();
+            return ApplyPredicates(matches, remaining);
+        }
+
+        // No text predicate — return structural runs
         var runs = context.SelectMany(e => e is Paragraph p
             ? p.Elements<Run>()
             : e.Descendants<Run>()).ToList();
 
         return ApplyPredicates(runs.Cast<OpenXmlElement>().ToList(), segment.Predicates);
+    }
+
+    /// <summary>
+    /// Finds text matching a predicate within a paragraph and splits runs
+    /// to isolate the matched span, returning the new run(s) covering the match.
+    /// </summary>
+    private static List<OpenXmlElement> FindAndSplitRuns(
+        Paragraph para, KeyValuePredicate predicate)
+    {
+        var results = new List<OpenXmlElement>();
+        string fullText = para.InnerText;
+
+        // Find all matching spans in the paragraph text
+        var spans = FindMatchingSpans(fullText, predicate);
+        if (spans.Count == 0)
+            return results;
+
+        // Build a map of character offset → run
+        var runs = para.Elements<Run>().ToList();
+        var runOffsets = new List<(Run Run, int Start, int End)>();
+        int offset = 0;
+        foreach (var run in runs)
+        {
+            string runText = run.InnerText;
+            runOffsets.Add((run, offset, offset + runText.Length));
+            offset += runText.Length;
+        }
+
+        // Process each matching span (in reverse to preserve offsets)
+        foreach (var (spanStart, spanEnd) in spans.OrderByDescending(s => s.Start))
+        {
+            var isolatedRun = IsolateTextSpan(para, runOffsets, spanStart, spanEnd);
+            if (isolatedRun != null)
+                results.Insert(0, isolatedRun);
+
+            // Rebuild run offsets after the split
+            runOffsets.Clear();
+            offset = 0;
+            foreach (var run in para.Elements<Run>())
+            {
+                string runText = run.InnerText;
+                runOffsets.Add((run, offset, offset + runText.Length));
+                offset += runText.Length;
+            }
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Finds all (start, end) character offsets matching the predicate in the text.
+    /// </summary>
+    private static List<(int Start, int End)> FindMatchingSpans(
+        string text, KeyValuePredicate predicate)
+    {
+        var spans = new List<(int Start, int End)>();
+        string value = predicate.Value;
+
+        switch (predicate.Operator)
+        {
+            case PredicateOperator.Equals:
+            {
+                // Find exact substring — there may be multiple occurrences
+                int idx = 0;
+                while ((idx = text.IndexOf(value, idx, StringComparison.Ordinal)) >= 0)
+                {
+                    spans.Add((idx, idx + value.Length));
+                    idx += value.Length;
+                }
+                break;
+            }
+            case PredicateOperator.AsteriskEquals: // contains
+            {
+                int idx = 0;
+                while ((idx = text.IndexOf(value, idx, StringComparison.Ordinal)) >= 0)
+                {
+                    spans.Add((idx, idx + value.Length));
+                    idx += value.Length;
+                }
+                break;
+            }
+            case PredicateOperator.CaretEquals: // starts with
+            {
+                if (text.StartsWith(value, StringComparison.Ordinal))
+                    spans.Add((0, value.Length));
+                break;
+            }
+            case PredicateOperator.DollarEquals: // ends with
+            {
+                if (text.EndsWith(value, StringComparison.Ordinal))
+                    spans.Add((text.Length - value.Length, text.Length));
+                break;
+            }
+            case PredicateOperator.TildeEquals: // regex
+            {
+                try
+                {
+                    foreach (Match m in Regex.Matches(text, value, RegexOptions.None, TimeSpan.FromSeconds(1)))
+                        spans.Add((m.Index, m.Index + m.Length));
+                }
+                catch (RegexParseException) { }
+                break;
+            }
+        }
+
+        return spans;
+    }
+
+    /// <summary>
+    /// Isolates a text span (by character offset) within a paragraph by splitting
+    /// the containing run(s). Returns the run covering the matched span.
+    /// </summary>
+    private static Run? IsolateTextSpan(
+        Paragraph para, List<(Run Run, int Start, int End)> runOffsets,
+        int spanStart, int spanEnd)
+    {
+        // Find runs that overlap the span
+        var overlapping = runOffsets
+            .Where(r => r.Start < spanEnd && r.End > spanStart)
+            .OrderBy(r => r.Start)
+            .ToList();
+
+        if (overlapping.Count == 0)
+            return null;
+
+        // Simple case: span falls entirely within one run
+        if (overlapping.Count == 1)
+        {
+            var (run, runStart, runEnd) = overlapping[0];
+            int localStart = spanStart - runStart;
+            int localEnd = spanEnd - runStart;
+            string runText = run.InnerText;
+
+            if (localStart == 0 && localEnd == runText.Length)
+                return run; // Exact match — no split needed
+
+            return SplitRun(run, localStart, localEnd);
+        }
+
+        // Multi-run span: split first and last runs, merge middle
+        // Split the first overlapping run at spanStart
+        var first = overlapping[0];
+        int firstLocalStart = spanStart - first.Start;
+        if (firstLocalStart > 0)
+        {
+            SplitRunAt(first.Run, firstLocalStart);
+        }
+
+        // Split the last overlapping run at spanEnd
+        var last = overlapping[^1];
+        int lastLocalEnd = spanEnd - last.Start;
+        string lastText = last.Run.InnerText;
+        if (lastLocalEnd < lastText.Length)
+        {
+            SplitRunAt(last.Run, lastLocalEnd);
+        }
+
+        // Find and return the run that starts at spanStart
+        int currentOffset = 0;
+        foreach (var run in para.Elements<Run>())
+        {
+            if (currentOffset == spanStart)
+                return run;
+            currentOffset += run.InnerText.Length;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Splits a run into up to 3 parts: before [start], the span [start..end], and after [end].
+    /// Returns the middle run (the isolated span).
+    /// </summary>
+    private static Run SplitRun(Run original, int start, int end)
+    {
+        string text = original.InnerText;
+        string before = text[..start];
+        string middle = text[start..end];
+        string after = text[end..];
+
+        // Clone run properties for the new runs
+        var props = original.RunProperties?.CloneNode(true) as RunProperties;
+
+        // Replace original's text with the middle portion
+        SetRunText(original, middle);
+
+        // Insert 'before' run before original
+        if (before.Length > 0)
+        {
+            var beforeRun = new Run();
+            if (props != null)
+                beforeRun.RunProperties = props.CloneNode(true) as RunProperties;
+            SetRunText(beforeRun, before);
+            original.InsertBeforeSelf(beforeRun);
+        }
+
+        // Insert 'after' run after original
+        if (after.Length > 0)
+        {
+            var afterRun = new Run();
+            if (props != null)
+                afterRun.RunProperties = props.CloneNode(true) as RunProperties;
+            SetRunText(afterRun, after);
+            original.InsertAfterSelf(afterRun);
+        }
+
+        return original;
+    }
+
+    /// <summary>
+    /// Splits a run at a character offset, producing two adjacent runs.
+    /// </summary>
+    private static void SplitRunAt(Run original, int offset)
+    {
+        string text = original.InnerText;
+        if (offset <= 0 || offset >= text.Length)
+            return;
+
+        string first = text[..offset];
+        string second = text[offset..];
+
+        SetRunText(original, first);
+
+        var newRun = new Run();
+        if (original.RunProperties != null)
+            newRun.RunProperties = original.RunProperties.CloneNode(true) as RunProperties;
+        SetRunText(newRun, second);
+        original.InsertAfterSelf(newRun);
+    }
+
+    /// <summary>
+    /// Sets a run's text content, replacing all existing Text elements.
+    /// </summary>
+    private static void SetRunText(Run run, string text)
+    {
+        // Remove existing text elements
+        foreach (var t in run.Elements<Text>().ToList())
+            t.Remove();
+
+        var newText = new Text(text);
+        // Preserve spaces if text has leading/trailing whitespace
+        if (text.Length > 0 && (text[0] == ' ' || text[^1] == ' '))
+            newText.Space = SpaceProcessingModeValues.Preserve;
+        run.AppendChild(newText);
     }
 
     private IReadOnlyList<OpenXmlElement> ResolveLists(

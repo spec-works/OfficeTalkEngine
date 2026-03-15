@@ -1,13 +1,13 @@
 {
-  "name": "format-italic-exact",
-  "description": "FORMAT italic on a text span within a paragraph (run splitting)",
+  "name": "format-run-contains",
+  "description": "FORMAT bold on run matched by text*= (contains) predicate with run splitting",
   "input": {
     "type": "word",
     "body": [
       { "type": "paragraph", "text": "AI agents use OfficeTalk to edit documents." }
     ]
   },
-  "operations": "format-italic-exact.otk",
+  "operations": "format-run-contains.otk",
   "expected": {
     "body": [
       { "type": "paragraph", "text": "AI agents use OfficeTalk to edit documents." }

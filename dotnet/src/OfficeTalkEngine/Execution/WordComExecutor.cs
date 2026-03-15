@@ -508,49 +508,74 @@ public class WordComExecutor : IOfficeTalkExecutor
 
     private static List<dynamic> ResolveRuns(dynamic doc, AddressSegment segment, List<dynamic>? parentRanges)
     {
-        // Check if there's a text predicate we can use with Find for precise matching
+        // Check for any text predicate — use Find for all text matching operators
         var textPred = segment.Predicates.OfType<KeyValuePredicate>()
-            .FirstOrDefault(p => p.Key.Equals("text", StringComparison.OrdinalIgnoreCase)
-                              && p.Operator == PredicateOperator.Equals);
+            .FirstOrDefault(p => p.Key.Equals("text", StringComparison.OrdinalIgnoreCase));
 
         if (textPred != null)
         {
-            // Use Word's Find to locate exact text — returns precise ranges
             var found = new List<dynamic>();
             var searchRanges = parentRanges ?? new List<dynamic> { doc.Content };
-            foreach (var searchRange in searchRanges)
-            {
-                dynamic range = searchRange.Duplicate;
-                dynamic find = range.Find;
-                find.ClearFormatting();
-                find.Text = textPred.Value;
-                find.Forward = true;
-                find.Wrap = 0; // wdFindStop
-                find.MatchCase = true;
-                find.MatchWholeWord = false;
 
-                while ((bool)find.Execute())
+            // For operators that map to a specific search string, use Find
+            string? searchText = textPred.Operator switch
+            {
+                PredicateOperator.Equals => textPred.Value,
+                PredicateOperator.AsteriskEquals => textPred.Value,  // contains
+                PredicateOperator.CaretEquals => textPred.Value,     // starts with
+                PredicateOperator.DollarEquals => textPred.Value,    // ends with
+                _ => null  // regex — fall through to Words collection
+            };
+
+            if (searchText != null)
+            {
+                foreach (var searchRange in searchRanges)
                 {
-                    found.Add(range.Duplicate);
-                    // Move past the found text to find next occurrence
-                    range.Start = (int)range.End;
-                    range.End = (int)searchRange.End;
-                    find = range.Find;
+                    dynamic range = searchRange.Duplicate;
+                    dynamic find = range.Find;
                     find.ClearFormatting();
-                    find.Text = textPred.Value;
+                    find.Text = searchText;
                     find.Forward = true;
-                    find.Wrap = 0;
+                    find.Wrap = 0; // wdFindStop
                     find.MatchCase = true;
                     find.MatchWholeWord = false;
+
+                    while ((bool)find.Execute())
+                    {
+                        // For starts-with/ends-with, verify the match is at the correct position
+                        bool valid = textPred.Operator switch
+                        {
+                            PredicateOperator.CaretEquals =>
+                                (int)range.Start == (int)searchRange.Start ||
+                                IsAtParagraphStart(doc, range),
+                            PredicateOperator.DollarEquals =>
+                                IsAtParagraphEnd(doc, range),
+                            _ => true
+                        };
+
+                        if (valid)
+                            found.Add(range.Duplicate);
+
+                        // Move past the found text to find next occurrence
+                        range.Start = (int)range.End;
+                        range.End = (int)searchRange.End;
+                        find = range.Find;
+                        find.ClearFormatting();
+                        find.Text = searchText;
+                        find.Forward = true;
+                        find.Wrap = 0;
+                        find.MatchCase = true;
+                        find.MatchWholeWord = false;
+                    }
                 }
+
+                var remaining = segment.Predicates
+                    .Where(p => !ReferenceEquals(p, textPred)).ToList();
+                return ApplyRangePredicates(doc, found, remaining);
             }
-            // Apply remaining predicates (positional, etc.) excluding the text one we already used
-            var remaining = segment.Predicates
-                .Where(p => !ReferenceEquals(p, textPred)).ToList();
-            return ApplyRangePredicates(doc, found, remaining);
         }
 
-        // Fallback: iterate Words collection (less precise)
+        // Fallback: iterate Words collection for regex or no-text-predicate cases
         var runs = new List<dynamic>();
         if (parentRanges == null)
         {
@@ -570,6 +595,38 @@ public class WordComExecutor : IOfficeTalkExecutor
         }
 
         return ApplyRangePredicates(doc, runs, segment.Predicates);
+    }
+
+    private static bool IsAtParagraphStart(dynamic doc, dynamic range)
+    {
+        try
+        {
+            foreach (dynamic para in doc.Paragraphs)
+            {
+                if ((int)para.Range.Start == (int)range.Start)
+                    return true;
+            }
+        }
+        catch { }
+        return false;
+    }
+
+    private static bool IsAtParagraphEnd(dynamic doc, dynamic range)
+    {
+        try
+        {
+            foreach (dynamic para in doc.Paragraphs)
+            {
+                int paraEnd = (int)para.Range.End;
+                string paraText = (string)(para.Range.Text ?? "");
+                // Paragraph end minus the ¶ mark
+                int textEnd = paraText.EndsWith("\r") ? paraEnd - 1 : paraEnd;
+                if ((int)range.End == textEnd)
+                    return true;
+            }
+        }
+        catch { }
+        return false;
     }
 
     private static List<dynamic> ResolveListItems(
