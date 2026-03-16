@@ -242,6 +242,9 @@ public class PowerPointComExecutor : IOfficeTalkExecutor
             case CommentOperation comment:
                 ExecuteComment(target, comment);
                 break;
+            case FormatOperation format:
+                ExecuteFormat(target, format);
+                break;
             default:
                 throw new NotSupportedException(
                     $"Operation type '{operation.GetType().Name}' is not supported by the PowerPoint COM executor.");
@@ -289,6 +292,80 @@ public class PowerPointComExecutor : IOfficeTalkExecutor
         // Slide.Comments.Add(Left, Top, Width, Height, Text)
         // Position at top-left of slide
         slide.Comments.Add(0, 0, "OfficeTalk", "OT", operation.Content.Text);
+    }
+
+    private static void ExecuteFormat(dynamic target, FormatOperation operation)
+    {
+        // Determine if target is a slide or a shape
+        bool isSlide = false;
+        try { _ = (int)target.SlideIndex; isSlide = true; } catch { }
+
+        foreach (var (key, value) in operation.Properties)
+        {
+            var strValue = value?.ToString() ?? "";
+            switch (key.ToLowerInvariant())
+            {
+                case "background":
+                case "fill":
+                    if (isSlide)
+                    {
+                        target.FollowMasterBackground = false;
+                        target.Background.Fill.Solid();
+                        target.Background.Fill.ForeColor.RGB = ParseColorToRgb(strValue);
+                    }
+                    else
+                    {
+                        target.Fill.Solid();
+                        target.Fill.ForeColor.RGB = ParseColorToRgb(strValue);
+                    }
+                    break;
+                case "bold":
+                    target.TextFrame.TextRange.Font.Bold = strValue.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    break;
+                case "italic":
+                    target.TextFrame.TextRange.Font.Italic = strValue.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    break;
+                case "font-size":
+                    if (double.TryParse(strValue, out double pts))
+                        target.TextFrame.TextRange.Font.Size = (float)pts;
+                    break;
+                case "color":
+                    target.TextFrame.TextRange.Font.Color.RGB = ParseColorToRgb(strValue);
+                    break;
+                case "font-name":
+                    target.TextFrame.TextRange.Font.Name = strValue;
+                    break;
+            }
+        }
+    }
+
+    private static int ParseColorToRgb(string color)
+    {
+        var c = color.ToLowerInvariant() switch
+        {
+            "black" => (0, 0, 0),
+            "white" => (255, 255, 255),
+            "red" => (255, 0, 0),
+            "green" => (0, 128, 0),
+            "blue" => (0, 0, 255),
+            "yellow" => (255, 255, 0),
+            "orange" => (255, 165, 0),
+            "gray" or "grey" => (128, 128, 128),
+            _ => (-1, -1, -1)
+        };
+
+        if (c.Item1 >= 0)
+            return c.Item1 | (c.Item2 << 8) | (c.Item3 << 16);
+
+        if (color.StartsWith('#') && color.Length == 7)
+        {
+            int r = Convert.ToInt32(color[1..3], 16);
+            int g = Convert.ToInt32(color[3..5], 16);
+            int b = Convert.ToInt32(color[5..7], 16);
+            return r | (g << 8) | (b << 16);
+        }
+
+        return 0;
     }
 
     #endregion

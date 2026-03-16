@@ -201,6 +201,9 @@ public class ExcelComExecutor : IOfficeTalkExecutor
             case CommentOperation comment:
                 ExecuteComment(target, comment);
                 break;
+            case FormatOperation format:
+                ExecuteFormat(target, format);
+                break;
             default:
                 throw new NotSupportedException(
                     $"Operation type '{operation.GetType().Name}' is not supported by the Excel COM executor.");
@@ -226,6 +229,139 @@ public class ExcelComExecutor : IOfficeTalkExecutor
         try { target.ClearComments(); } catch { /* no existing comment */ }
         // AddComment adds a comment to the range (cell)
         target.AddComment(operation.Content.Text);
+    }
+
+    // Excel border index constants (XlBordersIndex)
+    private const int XlEdgeBottom = 9;
+    private const int XlEdgeTop = 8;
+    private const int XlEdgeLeft = 7;
+    private const int XlEdgeRight = 10;
+
+    // Excel line style constants (XlLineStyle)
+    private const int XlContinuous = 1;
+    private const int XlLineStyleNone = -4142;
+
+    // Excel border weight constants (XlBorderWeight)
+    private const int XlThin = 2;
+    private const int XlMedium = -4138;
+    private const int XlThick = 4;
+
+    private static void ExecuteFormat(dynamic target, FormatOperation operation)
+    {
+        foreach (var (key, value) in operation.Properties)
+        {
+            var strValue = value?.ToString() ?? "";
+            switch (key.ToLowerInvariant())
+            {
+                case "bold":
+                    target.Font.Bold = strValue.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    break;
+                case "italic":
+                    target.Font.Italic = strValue.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    break;
+                case "underline":
+                    target.Font.Underline = strValue.Equals("true", StringComparison.OrdinalIgnoreCase);
+                    break;
+                case "font-name":
+                    target.Font.Name = strValue;
+                    break;
+                case "font-size":
+                    if (double.TryParse(strValue, out double pts))
+                        target.Font.Size = pts;
+                    break;
+                case "color":
+                    target.Font.Color = ParseColorToRgb(strValue);
+                    break;
+                case "background":
+                case "fill":
+                    target.Interior.Color = ParseColorToRgb(strValue);
+                    break;
+                case "border-bottom":
+                    ApplyBorder(target, XlEdgeBottom, strValue);
+                    break;
+                case "border-top":
+                    ApplyBorder(target, XlEdgeTop, strValue);
+                    break;
+                case "border-left":
+                    ApplyBorder(target, XlEdgeLeft, strValue);
+                    break;
+                case "border-right":
+                    ApplyBorder(target, XlEdgeRight, strValue);
+                    break;
+                case "alignment":
+                case "align":
+                    // xlHAlignLeft=-4131, Center=-4108, Right=-4152
+                    target.HorizontalAlignment = strValue.ToLowerInvariant() switch
+                    {
+                        "left" => -4131,
+                        "center" => -4108,
+                        "right" => -4152,
+                        _ => -4131
+                    };
+                    break;
+                case "number-format":
+                    target.NumberFormat = strValue;
+                    break;
+            }
+        }
+    }
+
+    private static void ApplyBorder(dynamic target, int borderIndex, string style)
+    {
+        var border = target.Borders[borderIndex];
+        switch (style.ToLowerInvariant())
+        {
+            case "thin":
+                border.LineStyle = XlContinuous;
+                border.Weight = XlThin;
+                break;
+            case "medium":
+                border.LineStyle = XlContinuous;
+                border.Weight = XlMedium;
+                break;
+            case "thick":
+                border.LineStyle = XlContinuous;
+                border.Weight = XlThick;
+                break;
+            case "none":
+                border.LineStyle = XlLineStyleNone;
+                break;
+            default:
+                border.LineStyle = XlContinuous;
+                border.Weight = XlThin;
+                break;
+        }
+    }
+
+    private static int ParseColorToRgb(string color)
+    {
+        // Named colors
+        var c = color.ToLowerInvariant() switch
+        {
+            "black" => (0, 0, 0),
+            "white" => (255, 255, 255),
+            "red" => (255, 0, 0),
+            "green" => (0, 128, 0),
+            "blue" => (0, 0, 255),
+            "yellow" => (255, 255, 0),
+            "orange" => (255, 165, 0),
+            "gray" or "grey" => (128, 128, 128),
+            _ => (-1, -1, -1)
+        };
+
+        if (c.Item1 >= 0)
+            return c.Item1 | (c.Item2 << 8) | (c.Item3 << 16);
+
+        // Hex color #RRGGBB
+        if (color.StartsWith('#') && color.Length == 7)
+        {
+            int r = Convert.ToInt32(color[1..3], 16);
+            int g = Convert.ToInt32(color[3..5], 16);
+            int b = Convert.ToInt32(color[5..7], 16);
+            return r | (g << 8) | (b << 16);
+        }
+
+        return 0; // default black
     }
 
     #endregion
