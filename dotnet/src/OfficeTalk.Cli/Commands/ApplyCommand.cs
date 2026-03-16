@@ -318,6 +318,13 @@ public static class ApplyCommand
 
         var extension = Path.GetExtension(target.FullName).ToLowerInvariant();
 
+        // If Word has the document open via COM, save it first so INSPECT
+        // reads the same state that write operations have been modifying.
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            TrySyncComDocument(target.FullName, extension, verbose);
+        }
+
         // Read file into memory (supports OneDrive/cloud files)
         using var memoryStream = new MemoryStream();
         using (var fs = new FileStream(target.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
@@ -348,5 +355,42 @@ public static class ApplyCommand
 
         writer.Flush();
         return 0;
+    }
+
+    /// <summary>
+    /// If the target document is open in an Office app via COM, save it to disk
+    /// so that INSPECT reads the current in-memory state.
+    /// </summary>
+    private static void TrySyncComDocument(string targetPath, string extension, bool verbose)
+    {
+        try
+        {
+            switch (extension)
+            {
+                case ".docx" or ".docm":
+                    if (WordComExecutor.IsAvailable(targetPath))
+                    {
+                        if (verbose)
+                            Console.Error.WriteLine("Word has document open — syncing to disk before INSPECT.");
+#pragma warning disable CA1416
+                        dynamic wordApp = ComInteropHelper.GetActiveObject("Word.Application");
+                        var normalizedTarget = Path.GetFullPath(targetPath);
+                        foreach (dynamic doc in wordApp.Documents)
+                        {
+                            if (string.Equals(Path.GetFullPath(doc.FullName), normalizedTarget, StringComparison.OrdinalIgnoreCase))
+                            {
+                                doc.Save();
+                                break;
+                            }
+                        }
+#pragma warning restore CA1416
+                    }
+                    break;
+            }
+        }
+        catch
+        {
+            // Best-effort: if COM sync fails, INSPECT still reads from disk
+        }
     }
 }
