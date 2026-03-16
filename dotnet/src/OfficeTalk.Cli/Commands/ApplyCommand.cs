@@ -1,8 +1,11 @@
 using System.Runtime.InteropServices;
+using DocumentFormat.OpenXml.Packaging;
 using OfficeTalk.Ast;
 using OfficeTalk.Parsing;
 using OfficeTalk.Validation;
 using OfficeTalkEngine.Execution;
+using OfficeTalkEngine.Inspection;
+using OfficeTalkEngine.Responses;
 using OfficeTalkEngine.Validation;
 
 namespace OfficeTalk.Cli.Commands;
@@ -110,6 +113,12 @@ public static class ApplyCommand
                 var line = warning.Line ?? 0;
                 var col = warning.Column ?? 0;
                 Console.Error.WriteLine($"{sourceName}:{line}:{col}: warning: {warning.Message}");
+            }
+
+            // Route: INSPECT documents → inspector, write documents → executor
+            if (document.InspectBlocks.Count > 0)
+            {
+                return ExecuteInspect(document, target, verbose);
             }
 
             if (verbose)
@@ -295,5 +304,49 @@ public static class ApplyCommand
     {
         if (text.Length <= maxLength) return text;
         return text[..maxLength] + "...";
+    }
+
+    /// <summary>
+    /// Execute INSPECT blocks and write JSONL responses to stdout.
+    /// </summary>
+    private static int ExecuteInspect(OfficeTalkDocument document, FileInfo target, bool verbose)
+    {
+        if (verbose)
+        {
+            Console.Error.WriteLine($"Inspecting {document.InspectBlocks.Count} block(s)");
+        }
+
+        var extension = Path.GetExtension(target.FullName).ToLowerInvariant();
+
+        // Read file into memory (supports OneDrive/cloud files)
+        using var memoryStream = new MemoryStream();
+        using (var fs = new FileStream(target.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+        {
+            fs.CopyTo(memoryStream);
+        }
+        memoryStream.Position = 0;
+
+        var writer = new JsonlResponseWriter(Console.Out);
+
+        switch (extension)
+        {
+            case ".docx" or ".docm":
+            {
+                using var wordDoc = WordprocessingDocument.Open(memoryStream, false);
+                var inspector = new WordInspector(wordDoc);
+                var responses = inspector.Inspect(document);
+                foreach (var response in responses)
+                {
+                    writer.WriteInspectResponse(response);
+                }
+                break;
+            }
+            default:
+                Console.Error.WriteLine($"Error: INSPECT not yet supported for '{extension}'. Currently supports: .docx");
+                return 1;
+        }
+
+        writer.Flush();
+        return 0;
     }
 }
