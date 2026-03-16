@@ -13,6 +13,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\OfficeTalkEngine\OfficeTalkEngine.csproj" />
+    <ProjectReference Include="..\..\src\OfficeTalk.Cli\OfficeTalk.Cli.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\..\testcases\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="testcases" />

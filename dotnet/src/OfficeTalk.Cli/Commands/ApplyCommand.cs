@@ -1,11 +1,8 @@
 using System.Runtime.InteropServices;
-using DocumentFormat.OpenXml.Packaging;
 using OfficeTalk.Ast;
 using OfficeTalk.Parsing;
 using OfficeTalk.Validation;
 using OfficeTalkEngine.Execution;
-using OfficeTalkEngine.Inspection;
-using OfficeTalkEngine.Responses;
 using OfficeTalkEngine.Validation;
 
 namespace OfficeTalk.Cli.Commands;
@@ -115,10 +112,11 @@ public static class ApplyCommand
                 Console.Error.WriteLine($"{sourceName}:{line}:{col}: warning: {warning.Message}");
             }
 
-            // Route: INSPECT documents → inspector, write documents → executor
+            // Route: INSPECT documents → inspect command
             if (document.InspectBlocks.Count > 0)
             {
-                return ExecuteInspect(document, target, verbose);
+                Console.Error.WriteLine("Note: Document contains INSPECT blocks. Routing to inspect handler.");
+                return InspectCommand.ExecuteOtk(input, target, verbose);
             }
 
             if (verbose)
@@ -304,93 +302,5 @@ public static class ApplyCommand
     {
         if (text.Length <= maxLength) return text;
         return text[..maxLength] + "...";
-    }
-
-    /// <summary>
-    /// Execute INSPECT blocks and write JSONL responses to stdout.
-    /// </summary>
-    private static int ExecuteInspect(OfficeTalkDocument document, FileInfo target, bool verbose)
-    {
-        if (verbose)
-        {
-            Console.Error.WriteLine($"Inspecting {document.InspectBlocks.Count} block(s)");
-        }
-
-        var extension = Path.GetExtension(target.FullName).ToLowerInvariant();
-
-        // If Word has the document open via COM, save it first so INSPECT
-        // reads the same state that write operations have been modifying.
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-        {
-            TrySyncComDocument(target.FullName, extension, verbose);
-        }
-
-        // Read file into memory (supports OneDrive/cloud files)
-        using var memoryStream = new MemoryStream();
-        using (var fs = new FileStream(target.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
-        {
-            fs.CopyTo(memoryStream);
-        }
-        memoryStream.Position = 0;
-
-        var writer = new JsonlResponseWriter(Console.Out);
-
-        switch (extension)
-        {
-            case ".docx" or ".docm":
-            {
-                using var wordDoc = WordprocessingDocument.Open(memoryStream, false);
-                var inspector = new WordInspector(wordDoc);
-                var responses = inspector.Inspect(document);
-                foreach (var response in responses)
-                {
-                    writer.WriteInspectResponse(response);
-                }
-                break;
-            }
-            default:
-                Console.Error.WriteLine($"Error: INSPECT not yet supported for '{extension}'. Currently supports: .docx");
-                return 1;
-        }
-
-        writer.Flush();
-        return 0;
-    }
-
-    /// <summary>
-    /// If the target document is open in an Office app via COM, save it to disk
-    /// so that INSPECT reads the current in-memory state.
-    /// </summary>
-    private static void TrySyncComDocument(string targetPath, string extension, bool verbose)
-    {
-        try
-        {
-            switch (extension)
-            {
-                case ".docx" or ".docm":
-                    if (WordComExecutor.IsAvailable(targetPath))
-                    {
-                        if (verbose)
-                            Console.Error.WriteLine("Word has document open — syncing to disk before INSPECT.");
-#pragma warning disable CA1416
-                        dynamic wordApp = ComInteropHelper.GetActiveObject("Word.Application");
-                        var normalizedTarget = Path.GetFullPath(targetPath);
-                        foreach (dynamic doc in wordApp.Documents)
-                        {
-                            if (string.Equals(Path.GetFullPath(doc.FullName), normalizedTarget, StringComparison.OrdinalIgnoreCase))
-                            {
-                                doc.Save();
-                                break;
-                            }
-                        }
-#pragma warning restore CA1416
-                    }
-                    break;
-            }
-        }
-        catch
-        {
-            // Best-effort: if COM sync fails, INSPECT still reads from disk
-        }
     }
 }

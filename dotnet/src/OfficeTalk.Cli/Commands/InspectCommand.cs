@@ -1,53 +1,99 @@
-using DocumentFormat.OpenXml.Packaging;
-using DocumentFormat.OpenXml;
+using OfficeTalk.Ast;
 using OfficeTalk.Parsing;
-using OfficeTalkEngine.Addressing;
-using Word = DocumentFormat.OpenXml.Wordprocessing;
+using OfficeTalk.Validation;
+using OfficeTalkEngine.Inspection;
+using OfficeTalkEngine.Responses;
+using DocumentFormat.OpenXml.Packaging;
 
 namespace OfficeTalk.Cli.Commands;
 
 /// <summary>
-/// Handles the inspect command — resolves an address and shows matched elements.
+/// Handles the inspect command — resolves addresses and shows matched elements.
+/// Supports both OTK documents (with INSPECT blocks) and bare --address mode.
 /// </summary>
 public static class InspectCommand
 {
-    public static int Execute(FileInfo target, string address, int context)
+    /// <summary>
+    /// Execute inspect using an OTK document containing INSPECT blocks.
+    /// Produces JSONL output conforming to §14.3.
+    /// </summary>
+    public static int ExecuteOtk(FileInfo? input, FileInfo target, bool verbose)
     {
         try
         {
-            if (!target.Exists)
+            // Read OTK source
+            string source;
+            string sourceName;
+            if (input != null)
             {
-                Console.Error.WriteLine($"Error: Target file not found: {target.FullName}");
+                if (!input.Exists)
+                {
+                    Console.Error.WriteLine($"Error: Input file not found: {input.FullName}");
+                    return 1;
+                }
+                source = File.ReadAllText(input.FullName);
+                sourceName = input.Name;
+            }
+            else if (Console.IsInputRedirected)
+            {
+                source = Console.In.ReadToEnd();
+                sourceName = "<stdin>";
+            }
+            else
+            {
+                Console.Error.WriteLine("Error: No input specified. Provide --input or pipe .otk content via stdin.");
                 return 1;
             }
 
-            // Parse the address by wrapping it in a minimal OfficeTalk document
-            var otkSource = $"OFFICETALK/1.0\nDOCTYPE word\nAT {address}\nDELETE";
-            var lexer = new OfficeTalkLexer(otkSource);
+            // Parse
+            var lexer = new OfficeTalkLexer(source);
             var tokens = lexer.Tokenize();
             var parser = new OfficeTalkParser(tokens);
             var document = parser.Parse();
 
             if (document.Errors.Count > 0)
             {
-                Console.Error.WriteLine($"Error: Invalid address '{address}'");
                 foreach (var error in document.Errors)
                 {
-                    Console.Error.WriteLine($"  {error.Message}");
+                    Console.Error.WriteLine($"{sourceName}:{error.Line}:{error.Column}: error: {error.Message}");
                 }
                 return 2;
             }
 
-            if (document.OperationBlocks.Count == 0)
+            // Validate: must contain only INSPECT blocks
+            var validator = new SyntacticValidator();
+            var result = validator.Validate(document);
+            if (!result.IsValid)
             {
-                Console.Error.WriteLine($"Error: Could not parse address '{address}'");
+                foreach (var error in result.Errors)
+                {
+                    Console.Error.WriteLine($"{sourceName}:{error.Line ?? 0}:{error.Column ?? 0}: error: {error.Message}");
+                }
                 return 2;
             }
 
-            var parsedAddress = document.OperationBlocks[0].Address;
+            if (document.InspectBlocks.Count == 0)
+            {
+                Console.Error.WriteLine($"{sourceName}: error: Document contains no INSPECT blocks.");
+                return 2;
+            }
 
-            // Resolve against target document
-            // Open with FileShare.ReadWrite so we can inspect even if the app has the file open
+            if (document.OperationBlocks.Count > 0 || document.PropertySettings.Count > 0)
+            {
+                Console.Error.WriteLine($"{sourceName}: error: INSPECT document must not contain write operations (AT/PROPERTY). Use 'apply' for write operations.");
+                return 2;
+            }
+
+            if (verbose)
+            {
+                Console.Error.WriteLine($"Inspecting {document.InspectBlocks.Count} block(s) against {target.FullName}");
+            }
+
+            // Sync COM state before reading
+            ComSync.SyncIfNeeded(target.FullName, verbose);
+
+            var extension = Path.GetExtension(target.FullName).ToLowerInvariant();
+
             using var memoryStream = new MemoryStream();
             using (var fs = new FileStream(target.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
             {
@@ -55,63 +101,27 @@ public static class InspectCommand
             }
             memoryStream.Position = 0;
 
-            var extension = Path.GetExtension(target.FullName).ToLowerInvariant();
-            IReadOnlyList<OpenXmlElement> elements;
-            WordprocessingDocument? wordDoc = null;
+            var writer = new JsonlResponseWriter(Console.Out);
 
             switch (extension)
             {
                 case ".docx" or ".docm":
                 {
-                    wordDoc = WordprocessingDocument.Open(memoryStream, false);
-                    var resolver = new WordAddressResolver(wordDoc);
-                    elements = resolver.Resolve(parsedAddress);
-                    break;
-                }
-                case ".xlsx" or ".xlsm":
-                {
-                    using var spreadsheetDoc = SpreadsheetDocument.Open(memoryStream, false);
-                    var resolver = new ExcelAddressResolver(spreadsheetDoc);
-                    elements = resolver.Resolve(parsedAddress);
-                    break;
-                }
-                case ".pptx" or ".pptm":
-                {
-                    using var presentationDoc = PresentationDocument.Open(memoryStream, false);
-                    var resolver = new PowerPointAddressResolver(presentationDoc);
-                    elements = resolver.Resolve(parsedAddress);
+                    using var wordDoc = WordprocessingDocument.Open(memoryStream, false);
+                    var inspector = new WordInspector(wordDoc);
+                    var responses = inspector.Inspect(document);
+                    foreach (var response in responses)
+                    {
+                        writer.WriteInspectResponse(response);
+                    }
                     break;
                 }
                 default:
-                    Console.Error.WriteLine($"Error: Unsupported file type '{extension}'.");
+                    Console.Error.WriteLine($"Error: INSPECT not yet supported for '{extension}'. Currently supports: .docx");
                     return 1;
             }
 
-            Console.WriteLine($"Address: {parsedAddress}");
-            Console.WriteLine($"Matched: {elements.Count} element(s)");
-
-            if (elements.Count == 0)
-            {
-                Console.WriteLine();
-                Console.WriteLine("  No elements matched this address.");
-                return 0;
-            }
-
-            Console.WriteLine();
-
-            // Get body children for position tracking (Word only)
-            var bodyChildren = wordDoc?.MainDocumentPart?.Document?.Body?.ChildElements
-                .OfType<OpenXmlElement>()
-                .ToList() ?? new List<OpenXmlElement>();
-
-            for (int i = 0; i < elements.Count; i++)
-            {
-                var element = elements[i];
-                PrintElement(i + 1, element, bodyChildren, context, wordDoc);
-            }
-
-            wordDoc?.Dispose();
-
+            writer.Flush();
             return 0;
         }
         catch (Exception ex) when (ex.Message.Contains("address", StringComparison.OrdinalIgnoreCase)
@@ -127,149 +137,42 @@ public static class InspectCommand
         }
     }
 
-    private static void PrintElement(int index, OpenXmlElement element, List<OpenXmlElement> bodyChildren, int context, WordprocessingDocument? wordDoc)
+    /// <summary>
+    /// Legacy mode: bare --address. Synthesizes a proper INSPECT document
+    /// and delegates to the OTK path.
+    /// </summary>
+    public static int Execute(FileInfo target, string address, int context, bool verbose)
     {
-        var text = element.InnerText;
-        var truncatedText = text.Length > 80 ? text[..80] + "..." : text;
-
-        if (element is Word.Paragraph paragraph)
+        // Determine DOCTYPE from file extension
+        var extension = Path.GetExtension(target.FullName).ToLowerInvariant();
+        var docType = extension switch
         {
-            var level = GetHeadingLevel(paragraph);
-            var styleName = GetStyleName(paragraph);
-            var position = bodyChildren.IndexOf(paragraph) + 1;
-            var totalParagraphs = bodyChildren.Count;
+            ".docx" or ".docm" => "word",
+            ".xlsx" or ".xlsm" => "excel",
+            ".pptx" or ".pptm" => "powerpoint",
+            _ => "word"
+        };
 
-            if (level > 0)
-            {
-                Console.WriteLine($"  [{index}] Heading (level {level})");
-            }
-            else
-            {
-                Console.WriteLine($"  [{index}] Paragraph");
-            }
-
-            Console.WriteLine($"      Text: \"{truncatedText}\"");
-            if (!string.IsNullOrEmpty(styleName))
-                Console.WriteLine($"      Style: \"{styleName}\"");
-            if (position > 0)
-                Console.WriteLine($"      Position: paragraph {position} of {totalParagraphs}");
-        }
-        else if (element is Word.Table)
-        {
-            var position = bodyChildren.IndexOf(element) + 1;
-            var rowCount = element.Elements<Word.TableRow>().Count();
-            Console.WriteLine($"  [{index}] Table");
-            Console.WriteLine($"      Rows: {rowCount}");
-            if (position > 0)
-                Console.WriteLine($"      Position: element {position} of {bodyChildren.Count}");
-        }
-        else if (element is Word.TableRow row)
-        {
-            var cellCount = row.Elements<Word.TableCell>().Count();
-            Console.WriteLine($"  [{index}] Table Row");
-            Console.WriteLine($"      Cells: {cellCount}");
-            Console.WriteLine($"      Text: \"{truncatedText}\"");
-        }
-        else if (element is Word.TableCell)
-        {
-            Console.WriteLine($"  [{index}] Table Cell");
-            Console.WriteLine($"      Text: \"{truncatedText}\"");
-        }
-        else
-        {
-            Console.WriteLine($"  [{index}] {element.GetType().Name}");
-            Console.WriteLine($"      Text: \"{truncatedText}\"");
-        }
-
-        // Show associated comments (Word documents only)
-        if (wordDoc != null)
-            PrintAssociatedComments(element, wordDoc);
-
-        // Show context elements
+        // Build a proper INSPECT document
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("OFFICETALK/1.0");
+        sb.AppendLine($"DOCTYPE {docType}");
+        sb.AppendLine();
+        sb.AppendLine($"INSPECT {address}");
+        sb.AppendLine("  INCLUDE content");
         if (context > 0)
+            sb.AppendLine($"  CONTEXT {context}");
+
+        // Write to a temp file and delegate to the OTK path
+        var tempFile = Path.GetTempFileName();
+        try
         {
-            var idx = bodyChildren.IndexOf(element);
-            if (idx >= 0)
-            {
-                var start = Math.Max(0, idx - context);
-                var end = Math.Min(bodyChildren.Count - 1, idx + context);
-
-                if (start < idx || end > idx)
-                {
-                    Console.WriteLine($"      Context:");
-                    for (int c = start; c <= end; c++)
-                    {
-                        var ctxElement = bodyChildren[c];
-                        var marker = c == idx ? ">>>" : "   ";
-                        var ctxText = ctxElement.InnerText;
-                        var ctxTruncated = ctxText.Length > 60 ? ctxText[..60] + "..." : ctxText;
-                        Console.WriteLine($"        {marker} [{c + 1}] \"{ctxTruncated}\"");
-                    }
-                }
-            }
+            File.WriteAllText(tempFile, sb.ToString());
+            return ExecuteOtk(new FileInfo(tempFile), target, verbose);
         }
-
-        Console.WriteLine();
-    }
-
-    private static void PrintAssociatedComments(OpenXmlElement element, WordprocessingDocument wordDoc)
-    {
-        var commentIds = new HashSet<string>();
-
-        foreach (var rangeStart in element.Descendants<Word.CommentRangeStart>())
+        finally
         {
-            if (rangeStart.Id?.Value is string id)
-                commentIds.Add(id);
+            File.Delete(tempFile);
         }
-
-        if (commentIds.Count == 0) return;
-
-        var commentsPart = wordDoc.MainDocumentPart?.WordprocessingCommentsPart;
-        if (commentsPart?.Comments == null) return;
-
-        var commentMap = commentsPart.Comments.Elements<Word.Comment>()
-            .Where(c => c.Id?.Value != null)
-            .ToDictionary(c => c.Id!.Value!, c => c);
-
-        foreach (var id in commentIds)
-        {
-            if (commentMap.TryGetValue(id, out var comment))
-            {
-                var author = comment.Author?.Value ?? "Unknown";
-                var commentText = comment.InnerText;
-                var truncated = commentText.Length > 60
-                    ? commentText[..60] + "..."
-                    : commentText;
-                Console.WriteLine($"      \U0001F4AC Comment (by {author}): \"{truncated}\"");
-            }
-        }
-    }
-
-    private static int GetHeadingLevel(Word.Paragraph paragraph)
-    {
-        var styleId = paragraph.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
-        if (string.IsNullOrEmpty(styleId))
-            return 0;
-
-        // Match patterns like "Heading1", "Heading2", etc.
-        if (styleId.StartsWith("Heading", StringComparison.OrdinalIgnoreCase) &&
-            int.TryParse(styleId.AsSpan(7), out int level))
-        {
-            return level;
-        }
-
-        // Check OutlineLevel
-        var outlineLevel = paragraph.ParagraphProperties?.OutlineLevel?.Val?.Value;
-        if (outlineLevel.HasValue)
-        {
-            return outlineLevel.Value + 1;
-        }
-
-        return 0;
-    }
-
-    private static string? GetStyleName(Word.Paragraph paragraph)
-    {
-        return paragraph.ParagraphProperties?.ParagraphStyleId?.Val?.Value;
     }
 }

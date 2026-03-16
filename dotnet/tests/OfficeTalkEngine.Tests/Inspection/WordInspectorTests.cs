@@ -810,4 +810,387 @@ INSPECT body/table[1]
         responses[0].Elements[2].Level.Should().Be(2);
         responses[0].Elements[3].Level.Should().Be(1);
     }
+
+    // ─── Edge cases ─────────────────────────────────────────────
+
+    [Fact]
+    public void Inspect_EmptyDocument_ReturnsZeroMatches()
+    {
+        using var doc = CreateInMemoryDocument(body => { });
+
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/paragraph\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses.Should().HaveCount(1);
+        responses[0].Matched.Should().Be(0);
+        responses[0].Elements.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Inspect_SingleElementDocument_ReturnsOneMatch()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Only paragraph"));
+        });
+
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/paragraph\n  INCLUDE content\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses[0].Matched.Should().Be(1);
+        responses[0].Elements[0].Index.Should().Be(1);
+        responses[0].Elements[0].Of.Should().Be(1);
+        responses[0].Elements[0].Content!.Text.Should().Be("Only paragraph");
+    }
+
+    [Fact]
+    public void Inspect_ContextOnSingleElement_ClampsCorrectly()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Only paragraph"));
+        });
+
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/paragraph[1]\n  CONTEXT 5\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses[0].Elements[0].Context.Should().NotBeNull();
+        responses[0].Elements[0].Context!.Before.Should().BeEmpty();
+        responses[0].Elements[0].Context!.After.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Inspect_DepthBeyondStructure_ReturnsAvailableLevels()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeTable(
+                new[] { "A", "B" }
+            ));
+        });
+
+        // DEPTH 5 on a simple table — should stop at cells (depth 2)
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/table[1]\n  DEPTH 5\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        var table = responses[0].Elements[0];
+        table.Children.Should().HaveCount(1); // 1 row
+        table.Children![0].Children.Should().HaveCount(2); // 2 cells
+    }
+
+    [Fact]
+    public void Inspect_LargeContext_ReturnsAllAvailable()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Para 1"));
+            body.AppendChild(MakeHeading("Middle", 1));
+            body.AppendChild(MakeParagraph("Para 2"));
+        });
+
+        // CONTEXT 100 — should clamp to available elements
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/heading[1]\n  CONTEXT 100\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses[0].Elements[0].Context.Should().NotBeNull();
+        responses[0].Elements[0].Context!.Before.Should().HaveCount(1);
+        responses[0].Elements[0].Context!.After.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public void Inspect_OverlappingAddresses_ReturnsSeparateResponses()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeHeading("Title", 1));
+            body.AppendChild(MakeParagraph("Body"));
+        });
+
+        var otk = ParseOtk(@"OFFICETALK/1.0
+DOCTYPE word
+
+INSPECT body/heading[1]
+  INCLUDE content
+
+INSPECT body/heading
+  INCLUDE content
+");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses.Should().HaveCount(2);
+        responses[0].Matched.Should().Be(1);
+        responses[0].Elements[0].Content!.Text.Should().Be("Title");
+        responses[1].Matched.Should().Be(1);
+        responses[1].Elements[0].Content!.Text.Should().Be("Title");
+    }
+
+    [Fact]
+    public void Inspect_LargeDocument_HandlesCorrectly()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            for (int i = 0; i < 200; i++)
+            {
+                if (i % 10 == 0)
+                    body.AppendChild(MakeHeading($"Section {i / 10 + 1}", 1));
+                else
+                    body.AppendChild(MakeParagraph($"Paragraph {i}"));
+            }
+        });
+
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/heading\n  INCLUDE content\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses[0].Matched.Should().Be(20);
+        responses[0].Elements.Should().HaveCount(20);
+        responses[0].Elements[0].Content!.Text.Should().Be("Section 1");
+        responses[0].Elements[19].Content!.Text.Should().Be("Section 20");
+    }
+
+    [Fact]
+    public void Inspect_TableCells_DirectAddressing()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeTable(
+                new[] { "Name", "Value" },
+                new[] { "Alpha", "100" },
+                new[] { "Beta", "200" }
+            ));
+        });
+
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/table[1]/row[2]\n  DEPTH 1\n  INCLUDE content\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses[0].Matched.Should().Be(1);
+        var row = responses[0].Elements[0];
+        row.Type.Should().Be("row");
+        row.Children.Should().HaveCount(2);
+        row.Children![0].Content!.Text.Should().Be("Alpha");
+        row.Children![1].Content!.Text.Should().Be("100");
+    }
+
+    [Fact]
+    public void Inspect_MultipleTablesInDocument_PositionalIndexing()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeTable(new[] { "Table1-A", "Table1-B" }));
+            body.AppendChild(MakeParagraph("Separator"));
+            body.AppendChild(MakeTable(new[] { "Table2-A", "Table2-B" }));
+        });
+
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/table\n  DEPTH 2\n  INCLUDE content\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses[0].Matched.Should().Be(2);
+        responses[0].Elements[0].Index.Should().Be(1);
+        responses[0].Elements[0].Of.Should().Be(2);
+        responses[0].Elements[1].Index.Should().Be(2);
+        responses[0].Elements[1].Of.Should().Be(2);
+        responses[0].Elements[0].Children![0].Children![0].Content!.Text.Should().Be("Table1-A");
+        responses[0].Elements[1].Children![0].Children![0].Content!.Text.Should().Be("Table2-A");
+    }
+
+    [Fact]
+    public void Inspect_DepthZeroExplicit_NoChildren()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeTable(
+                new[] { "A", "B" },
+                new[] { "C", "D" }
+            ));
+        });
+
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/table[1]\n  DEPTH 0\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses[0].Elements[0].Children.Should().BeNull();
+    }
+
+    [Fact]
+    public void Inspect_IncludeContentWithoutProperties_PropertiesNull()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeHeading("Title", 1));
+        });
+
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/heading[1]\n  INCLUDE content\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses[0].Elements[0].Content.Should().NotBeNull();
+        responses[0].Elements[0].Properties.Should().BeNull();
+    }
+
+    [Fact]
+    public void Inspect_IncludePropertiesWithoutContent_ContentNull()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeHeading("Title", 1));
+        });
+
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/heading[1]\n  INCLUDE properties\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses[0].Elements[0].Content.Should().BeNull();
+        responses[0].Elements[0].Properties.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Inspect_NoInclude_BothContentAndPropertiesNull()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeHeading("Title", 1));
+        });
+
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/heading[1]\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses[0].Elements[0].Content.Should().BeNull();
+        responses[0].Elements[0].Properties.Should().BeNull();
+        // Should still have addressing info
+        responses[0].Elements[0].Type.Should().Be("heading");
+        responses[0].Elements[0].Level.Should().Be(1);
+    }
+
+    [Fact]
+    public void Inspect_ResponseAddressMatchesInput()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeHeading("Title", 1));
+            body.AppendChild(MakeParagraph("Text"));
+        });
+
+        var otk = ParseOtk("OFFICETALK/1.0\nDOCTYPE word\n\nINSPECT body/heading[1]\n  INCLUDE content\n");
+        var inspector = new WordInspector(doc);
+        var responses = inspector.Inspect(otk);
+
+        responses[0].Address.Should().Contain("heading");
+    }
+
+    // ─── JSONL serialization edge cases ─────────────────────────
+
+    [Fact]
+    public void JsonlWriter_MultipleResponses_WritesOneLine​PerResponse()
+    {
+        var writer = new StringWriter();
+        var jsonl = new JsonlResponseWriter(writer);
+
+        jsonl.WriteInspectResponse(new InspectResponse
+        {
+            Address = "body/heading",
+            Matched = 1,
+            Elements = new List<ElementInfo>
+            {
+                new() { Type = "heading", Index = 1, Of = 1, Level = 1 }
+            }
+        });
+
+        jsonl.WriteInspectResponse(new InspectResponse
+        {
+            Address = "body/paragraph",
+            Matched = 0,
+            Elements = new List<ElementInfo>()
+        });
+
+        jsonl.Flush();
+        var lines = writer.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        lines.Should().HaveCount(2);
+
+        // Each line should be valid JSON
+        foreach (var line in lines)
+        {
+            var action = () => JsonDocument.Parse(line);
+            action.Should().NotThrow();
+        }
+    }
+
+    [Fact]
+    public void JsonlWriter_EmptyElements_SerializesAsEmptyArray()
+    {
+        var writer = new StringWriter();
+        var jsonl = new JsonlResponseWriter(writer);
+
+        jsonl.WriteInspectResponse(new InspectResponse
+        {
+            Address = "body/heading",
+            Matched = 0,
+            Elements = new List<ElementInfo>()
+        });
+        jsonl.Flush();
+
+        var json = JsonDocument.Parse(writer.ToString().Trim());
+        json.RootElement.GetProperty("elements").GetArrayLength().Should().Be(0);
+        json.RootElement.GetProperty("matched").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public void JsonlWriter_ErrorResponse_IncludesErrorField()
+    {
+        var writer = new StringWriter();
+        var jsonl = new JsonlResponseWriter(writer);
+
+        jsonl.WriteInspectResponse(new InspectResponse
+        {
+            Address = "body/nonexistent",
+            Matched = 0,
+            Elements = new List<ElementInfo>(),
+            Error = "Address resolution failed"
+        });
+        jsonl.Flush();
+
+        var json = JsonDocument.Parse(writer.ToString().Trim());
+        json.RootElement.GetProperty("error").GetString().Should().Be("Address resolution failed");
+    }
+
+    [Fact]
+    public void JsonlWriter_ContextWithEmptyBeforeAfter_Serializes()
+    {
+        var writer = new StringWriter();
+        var jsonl = new JsonlResponseWriter(writer);
+
+        jsonl.WriteInspectResponse(new InspectResponse
+        {
+            Address = "body/paragraph[1]",
+            Matched = 1,
+            Elements = new List<ElementInfo>
+            {
+                new()
+                {
+                    Type = "paragraph",
+                    Index = 1,
+                    Of = 1,
+                    Context = new ContextInfo
+                    {
+                        Before = new List<ElementInfo>(),
+                        After = new List<ElementInfo>()
+                    }
+                }
+            }
+        });
+        jsonl.Flush();
+
+        var json = JsonDocument.Parse(writer.ToString().Trim());
+        var element = json.RootElement.GetProperty("elements")[0];
+        element.GetProperty("context").GetProperty("before").GetArrayLength().Should().Be(0);
+        element.GetProperty("context").GetProperty("after").GetArrayLength().Should().Be(0);
+    }
 }

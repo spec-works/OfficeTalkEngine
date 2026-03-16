@@ -177,7 +177,12 @@ parseCommand.SetHandler((context) =>
 rootCommand.AddCommand(parseCommand);
 
 // inspect command
-var inspectCommand = new Command("inspect", "Show what an address resolves to in a document");
+var inspectCommand = new Command("inspect", "Inspect a document using an .otk file with INSPECT blocks, or a bare address");
+
+var inspectInputOption = new Option<FileInfo?>(
+    aliases: new[] { "--input", "-i" },
+    description: "Path to .otk file containing INSPECT blocks (reads from stdin if omitted and stdin is piped)"
+);
 
 var inspectTargetOption = new Option<FileInfo>(
     aliases: new[] { "--target", "-t" },
@@ -195,31 +200,54 @@ inspectTargetOption.AddValidator(result =>
     }
 });
 
-var addressOption = new Option<string>(
+var addressOption = new Option<string?>(
     aliases: new[] { "--address", "-a" },
-    description: "OfficeTalk address to resolve"
-)
-{
-    IsRequired = true
-};
+    description: "OfficeTalk address to resolve (legacy mode; prefer --input with .otk file)"
+);
 
 var contextOption = new Option<int>(
     aliases: new[] { "--context", "-c" },
-    description: "Lines of surrounding context to show",
+    description: "Lines of surrounding context to show (legacy mode only)",
     getDefaultValue: () => 0
 );
 
+var inspectVerboseOption = new Option<bool>(
+    aliases: new[] { "--verbose", "-v" },
+    description: "Show detailed output",
+    getDefaultValue: () => false
+);
+
+inspectCommand.AddOption(inspectInputOption);
 inspectCommand.AddOption(inspectTargetOption);
 inspectCommand.AddOption(addressOption);
 inspectCommand.AddOption(contextOption);
+inspectCommand.AddOption(inspectVerboseOption);
 
 inspectCommand.SetHandler((context) =>
 {
+    var input = context.ParseResult.GetValueForOption(inspectInputOption);
     var target = context.ParseResult.GetValueForOption(inspectTargetOption)!;
-    var address = context.ParseResult.GetValueForOption(addressOption)!;
+    var address = context.ParseResult.GetValueForOption(addressOption);
     var ctxLines = context.ParseResult.GetValueForOption(contextOption);
+    var verbose = context.ParseResult.GetValueForOption(inspectVerboseOption);
 
-    var exitCode = InspectCommand.Execute(target, address, ctxLines);
+    int exitCode;
+    if (input != null || (address == null && Console.IsInputRedirected))
+    {
+        // OTK mode: parse .otk file with INSPECT blocks, produce JSONL
+        exitCode = InspectCommand.ExecuteOtk(input, target, verbose);
+    }
+    else if (address != null)
+    {
+        // Legacy mode: bare address, human-readable output
+        exitCode = InspectCommand.Execute(target, address, ctxLines, verbose);
+    }
+    else
+    {
+        Console.Error.WriteLine("Error: Provide --input (.otk file) or --address (bare address).");
+        exitCode = 1;
+    }
+
     context.ExitCode = exitCode;
 });
 
