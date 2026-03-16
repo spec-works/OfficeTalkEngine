@@ -1102,21 +1102,21 @@ public class WordComExecutor : IOfficeTalkExecutor
             case CommentOperation comment:
                 ExecuteComment(doc, range, comment);
                 break;
-            case InsertImageOperation:
-                throw new NotImplementedException(
-                    "INSERT IMAGE is not yet supported by the COM executor. Use the OpenXML executor.");
-            case InsertTableOperation:
-                throw new NotImplementedException(
-                    "INSERT TABLE is not yet supported by the COM executor. Use the OpenXML executor.");
-            case LinkOperation:
-                throw new NotImplementedException(
-                    "LINK is not yet supported by the COM executor. Use the OpenXML executor.");
-            case InsertListOperation:
-                throw new NotImplementedException(
-                    "INSERT LIST is not yet supported by the COM executor. Use the OpenXML executor.");
-            case SetRunsOperation:
-                throw new NotImplementedException(
-                    "SET RUNS is not yet supported by the COM executor. Use the OpenXML executor.");
+            case InsertImageOperation insertImage:
+                ExecuteInsertImage(doc, range, insertImage);
+                break;
+            case InsertTableOperation insertTable:
+                ExecuteInsertTable(doc, range, insertTable);
+                break;
+            case LinkOperation link:
+                ExecuteLink(doc, range, link);
+                break;
+            case InsertListOperation insertList:
+                ExecuteInsertList(doc, range, insertList);
+                break;
+            case SetRunsOperation setRuns:
+                ExecuteSetRuns(doc, range, setRuns);
+                break;
             default:
                 throw new NotSupportedException(
                     $"Operation type '{operation.GetType().Name}' is not supported by the COM executor.");
@@ -1554,6 +1554,280 @@ public class WordComExecutor : IOfficeTalkExecutor
     {
         // COM: range.Comments.Add(range, "text")
         range.Comments.Add(range, operation.Content.Text);
+    }
+
+    #endregion
+
+    #region New Operations (INSERT IMAGE, INSERT TABLE, LINK, INSERT LIST, SET RUNS)
+
+    private static void ExecuteInsertImage(dynamic doc, dynamic range, InsertImageOperation operation)
+    {
+        // Insert a new paragraph at the right position
+        int originalEnd = (int)range.End;
+
+        if (operation.Position == InsertPosition.Before)
+        {
+            dynamic insertRange = range.Duplicate;
+            insertRange.End = (int)insertRange.Start;
+            insertRange.Collapse(1); // wdCollapseStart
+
+            // InlineShapes.AddPicture inserts at the range position
+            string source = operation.Source;
+            if (!Path.IsPathRooted(source) && !source.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                source = Path.GetFullPath(source);
+            }
+
+            dynamic shape = doc.InlineShapes.AddPicture(source, false, true, insertRange);
+            ApplyImageProperties(shape, operation.Properties);
+
+            // Insert paragraph break after the image so the original content stays separate
+            shape.Range.InsertParagraphAfter();
+        }
+        else
+        {
+            range.InsertParagraphAfter();
+            dynamic newRange = doc.Range(originalEnd + 1, originalEnd + 1);
+
+            string source = operation.Source;
+            if (!Path.IsPathRooted(source) && !source.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                source = Path.GetFullPath(source);
+            }
+
+            dynamic shape = doc.InlineShapes.AddPicture(source, false, true, newRange);
+            ApplyImageProperties(shape, operation.Properties);
+        }
+    }
+
+    private static void ApplyImageProperties(dynamic shape, Dictionary<string, object> properties)
+    {
+        if (properties.TryGetValue("width", out var wVal))
+        {
+            if (TryParsePoints(wVal?.ToString() ?? "", out double wPts))
+                shape.Width = (float)wPts;
+        }
+        if (properties.TryGetValue("height", out var hVal))
+        {
+            if (TryParsePoints(hVal?.ToString() ?? "", out double hPts))
+                shape.Height = (float)hPts;
+        }
+        if (properties.TryGetValue("alt", out var altVal))
+        {
+            try { shape.AlternativeText = altVal?.ToString() ?? ""; } catch { }
+        }
+    }
+
+    private static void ExecuteInsertTable(dynamic doc, dynamic range, InsertTableOperation operation)
+    {
+        int originalEnd = (int)range.End;
+
+        if (operation.Position == InsertPosition.Before)
+        {
+            dynamic insertRange = range.Duplicate;
+            insertRange.End = (int)insertRange.Start;
+            insertRange.Collapse(1); // wdCollapseStart
+            insertRange.InsertParagraphBefore();
+            dynamic tableRange = doc.Range((int)insertRange.Start - 1, (int)insertRange.Start - 1);
+            doc.Tables.Add(tableRange, operation.Rows, operation.Columns);
+        }
+        else
+        {
+            range.InsertParagraphAfter();
+            dynamic tableRange = doc.Range(originalEnd + 1, originalEnd + 1);
+            doc.Tables.Add(tableRange, operation.Rows, operation.Columns);
+        }
+    }
+
+    private static void ExecuteLink(dynamic doc, dynamic range, LinkOperation operation)
+    {
+        // Create hyperlink on the addressed range
+        // Hyperlinks.Add(Anchor, Address, SubAddress, ScreenTip, TextToDisplay)
+        string displayText = (string)(range.Text ?? "");
+        doc.Hyperlinks.Add(range, operation.Url, Type.Missing, Type.Missing, displayText);
+    }
+
+    private static void ExecuteInsertList(dynamic doc, dynamic range, InsertListOperation operation)
+    {
+        // Word COM list template constants
+        const int wdListBullet = 2;    // wdListListNumOnly for numbered = not quite right
+        const int wdListSimpleNumbering = 1;
+
+        int originalEnd = (int)range.End;
+
+        // Build the list text — items separated by paragraph marks
+        var itemTexts = new List<string>();
+        var nestLevels = new List<int>();
+        foreach (var item in operation.Items)
+        {
+            itemTexts.Add(item.Content.Text);
+            nestLevels.Add(item.IsNested ? 1 : 0);
+        }
+
+        // Insert paragraphs for the list items
+        dynamic insertStart;
+        if (operation.Position == InsertPosition.Before)
+        {
+            dynamic insertRange = range.Duplicate;
+            insertRange.End = (int)insertRange.Start;
+            insertRange.Collapse(1);
+
+            // Insert all items as separate paragraphs
+            for (int i = itemTexts.Count - 1; i >= 0; i--)
+            {
+                insertRange.InsertBefore(itemTexts[i] + "\r");
+            }
+            // Select the inserted paragraphs
+            insertStart = doc.Range((int)insertRange.Start, (int)range.Start);
+        }
+        else
+        {
+            // Insert after: create paragraphs after the range
+            dynamic afterRange = doc.Range(originalEnd, originalEnd);
+            for (int i = 0; i < itemTexts.Count; i++)
+            {
+                afterRange.InsertParagraphAfter();
+                dynamic newRange = doc.Range((int)afterRange.End - 1, (int)afterRange.End - 1);
+                newRange.InsertBefore(itemTexts[i]);
+                afterRange = doc.Range(originalEnd, (int)newRange.End + 1);
+            }
+            insertStart = doc.Range(originalEnd + 1, (int)afterRange.End);
+        }
+
+        // Apply list formatting
+        try
+        {
+            dynamic listTemplate;
+            if (operation.ListType == ListType.Ordered)
+            {
+                listTemplate = doc.Application.ListGalleries[wdListSimpleNumbering].ListTemplates[1];
+            }
+            else
+            {
+                listTemplate = doc.Application.ListGalleries[wdListBullet].ListTemplates[1];
+            }
+            insertStart.ListFormat.ApplyListTemplateWithLevel(listTemplate, false, 1, 1);
+        }
+        catch
+        {
+            // Fallback: just apply list style
+            try { insertStart.Style = "List Paragraph"; } catch { }
+        }
+
+        // Apply nesting levels
+        try
+        {
+            int paraIdx = 0;
+            foreach (dynamic para in insertStart.Paragraphs)
+            {
+                if (paraIdx < nestLevels.Count && nestLevels[paraIdx] > 0)
+                {
+                    // Increase indent level for nested items
+                    para.Range.ListFormat.ListLevelNumber = nestLevels[paraIdx] + 1;
+                }
+                paraIdx++;
+            }
+        }
+        catch { }
+    }
+
+    private static void ExecuteSetRuns(dynamic doc, dynamic range, SetRunsOperation operation)
+    {
+        // Clear existing content
+        dynamic textRange = range.Duplicate;
+        string currentText = (string)(textRange.Text ?? "");
+        if (currentText.EndsWith("\r"))
+            textRange.End = (int)textRange.End - 1;
+        textRange.Text = "";
+
+        // Insert runs one by one
+        int insertPos = (int)textRange.Start;
+        foreach (var runDef in operation.Runs)
+        {
+            dynamic runRange = doc.Range(insertPos, insertPos);
+
+            string text = runDef.Content.Text;
+            runRange.InsertBefore(text);
+
+            // Select just the inserted text
+            dynamic formattedRange = doc.Range(insertPos, insertPos + text.Length);
+
+            // Apply formatting
+            foreach (var (key, value) in runDef.Properties)
+            {
+                var strValue = value?.ToString() ?? "";
+                switch (key.ToLowerInvariant())
+                {
+                    case "bold":
+                        formattedRange.Bold = strValue.Equals("true", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+                        break;
+                    case "italic":
+                        formattedRange.Italic = strValue.Equals("true", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+                        break;
+                    case "underline":
+                        formattedRange.Underline = strValue.ToLowerInvariant() switch
+                        {
+                            "single" or "true" => 1,  // wdUnderlineSingle
+                            "double" => 3,             // wdUnderlineDouble
+                            "dotted" => 4,             // wdUnderlineDotted
+                            "dashed" => 7,             // wdUnderlineDash
+                            "wavy" => 11,              // wdUnderlineWavy
+                            "none" => 0,               // wdUnderlineNone
+                            _ => 1
+                        };
+                        break;
+                    case "strikethrough":
+                        formattedRange.Font.StrikeThrough =
+                            strValue.Equals("true", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+                        break;
+                    case "font-name":
+                        formattedRange.Font.Name = strValue;
+                        break;
+                    case "font-size":
+                        if (TryParsePoints(strValue, out double pts))
+                            formattedRange.Font.Size = (float)pts;
+                        break;
+                    case "color":
+                        formattedRange.Font.Color = ParseColorToRgb(strValue);
+                        break;
+                    case "highlight":
+                        // wdYellow=7, wdGreen=4, wdCyan=8, etc.
+                        formattedRange.HighlightColorIndex = ResolveHighlightColorIndex(strValue);
+                        break;
+                    case "href":
+                        // Create hyperlink on this run
+                        doc.Hyperlinks.Add(formattedRange, strValue, Type.Missing, Type.Missing, text);
+                        break;
+                }
+            }
+
+            insertPos += text.Length;
+        }
+    }
+
+    private static int ResolveHighlightColorIndex(string color)
+    {
+        // Word COM WdColorIndex values
+        return color.ToLowerInvariant() switch
+        {
+            "yellow" => 7,
+            "green" => 4,
+            "cyan" or "turquoise" => 8,
+            "magenta" or "pink" => 5,
+            "blue" => 2,
+            "red" => 6,
+            "darkblue" => 9,
+            "darkcyan" or "teal" => 10,
+            "darkgreen" => 11,
+            "darkmagenta" or "violet" => 12,
+            "darkred" => 13,
+            "darkyellow" or "brown" => 14,
+            "lightgray" or "lightgrey" or "gray25" => 16,
+            "darkgray" or "darkgrey" or "gray50" => 15,
+            "black" => 1,
+            "white" => 8,
+            _ => 7 // default to yellow
+        };
     }
 
     #endregion
