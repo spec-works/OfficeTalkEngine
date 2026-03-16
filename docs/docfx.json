@@ -1,0 +1,67 @@
+{
+  "metadata": [
+    {
+      "src": [
+        {
+          "files": [
+            "OfficeTalkEngine/OfficeTalkEngine.csproj",
+            "OfficeTalk.Cli/OfficeTalk.Cli.csproj"
+          ],
+          "src": "../dotnet/src"
+        }
+      ],
+      "dest": "api",
+      "includePrivateMembers": false,
+      "disableGitFeatures": false,
+      "disableDefaultFilter": false,
+      "filter": "filterConfig.yml"
+    }
+  ],
+  "build": {
+    "content": [
+      {
+        "files": [
+          "api/**.yml",
+          "api/index.md"
+        ]
+      },
+      {
+        "files": [
+          "**.md",
+          "**.yml"
+        ],
+        "exclude": [
+          "obj/**",
+          "_site/**",
+          "**/bin/**",
+          "**/obj/**"
+        ]
+      }
+    ],
+    "resource": [
+      {
+        "files": [
+          "images/**"
+        ]
+      }
+    ],
+    "output": "_site",
+    "template": ["default", "modern", "template"],
+    "globalMetadata": {
+      "_appTitle": "OfficeTalkEngine Documentation",
+      "_appName": "OfficeTalkEngine",
+      "_appFooter": "<a href='https://spec-works.github.io/'>SpecWorks Factory</a> | <a href='https://github.com/spec-works/OfficeTalkEngine'>GitHub</a>",
+      "_enableSearch": true,
+      "_enableNewTab": true,
+      "_gitContribute": {
+        "repo": "https://github.com/spec-works/OfficeTalkEngine",
+        "branch": "main"
+      },
+      "_appLogoPath": "images/logo.svg",
+      "_appFaviconPath": "images/logo.svg",
+      "_extraCss": [
+        "styles/main.css"
+      ]
+    }
+  }
+}

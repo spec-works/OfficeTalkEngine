@@ -1,0 +1,10 @@
+- name: ← SpecWorks Factory
+  href: https://spec-works.github.io/
+- name: Home
+  href: index.md
+- name: OfficeTalk Spec
+  href: https://github.com/spec-works/OfficeTalk/blob/main/officetalk-spec.md
+- name: API Reference
+  href: api/
+- name: GitHub
+  href: https://github.com/spec-works/OfficeTalkEngine
