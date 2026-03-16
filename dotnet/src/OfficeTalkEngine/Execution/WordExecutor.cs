@@ -172,6 +172,21 @@ public class WordExecutor : IOfficeTalkExecutor
             case CommentOperation comment:
                 ExecuteComment(wordDoc, element, comment);
                 break;
+            case InsertImageOperation insertImage:
+                ExecuteInsertImage(wordDoc, element, insertImage);
+                break;
+            case InsertTableOperation insertTable:
+                ExecuteInsertTable(element, insertTable);
+                break;
+            case LinkOperation link:
+                ExecuteLink(wordDoc, element, link);
+                break;
+            case InsertListOperation insertList:
+                ExecuteInsertList(wordDoc, element, insertList);
+                break;
+            case SetRunsOperation setRuns:
+                ExecuteSetRuns(wordDoc, element, setRuns);
+                break;
             case InsertSlideOperation:
                 throw new NotImplementedException("INSERT SLIDE operations are not supported for Word documents.");
             case DuplicateSlideOperation:
@@ -848,5 +863,474 @@ public class WordExecutor : IOfficeTalkExecutor
             rangeEnd.InsertAfterSelf(new Paragraph(
                 new Run(new CommentReference { Id = commentIdStr })));
         }
+    }
+
+    private static void ExecuteInsertImage(
+        WordprocessingDocument wordDoc, OpenXmlElement element, InsertImageOperation operation)
+    {
+        var mainPart = wordDoc.MainDocumentPart
+            ?? throw new InvalidOperationException("Document has no main part.");
+
+        // Read image bytes from file or URL
+        byte[] imageBytes;
+        string contentType;
+        if (operation.Source.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            using var client = new System.Net.Http.HttpClient();
+            imageBytes = client.GetByteArrayAsync(operation.Source).GetAwaiter().GetResult();
+            contentType = "image/png"; // default
+        }
+        else
+        {
+            imageBytes = File.ReadAllBytes(operation.Source);
+            contentType = GetImageContentType(operation.Source);
+        }
+
+        // Add image part
+        var imagePart = mainPart.AddImagePart(
+            contentType switch
+            {
+                "image/png" => ImagePartType.Png,
+                "image/jpeg" => ImagePartType.Jpeg,
+                "image/gif" => ImagePartType.Gif,
+                "image/bmp" => ImagePartType.Bmp,
+                "image/svg+xml" => ImagePartType.Svg,
+                _ => ImagePartType.Png
+            });
+
+        using (var stream = new MemoryStream(imageBytes))
+        {
+            imagePart.FeedData(stream);
+        }
+
+        string relId = mainPart.GetIdOfPart(imagePart);
+
+        // Parse dimensions (default 4in x 3in = 3657600 x 2743200 EMU)
+        long widthEmu = 3657600L;
+        long heightEmu = 2743200L;
+
+        if (operation.Properties.TryGetValue("width", out var wVal) &&
+            TryParseEmu(wVal?.ToString() ?? "", out var w))
+            widthEmu = w;
+        if (operation.Properties.TryGetValue("height", out var hVal) &&
+            TryParseEmu(hVal?.ToString() ?? "", out var h))
+            heightEmu = h;
+
+        string altText = operation.Properties.TryGetValue("alt", out var alt)
+            ? alt?.ToString() ?? "" : "";
+
+        // Build the Drawing element
+        var drawing = CreateInlineDrawing(relId, widthEmu, heightEmu, altText);
+        var paragraph = new Paragraph(new Run(drawing));
+
+        if (operation.Position == InsertPosition.Before)
+            element.InsertBeforeSelf(paragraph);
+        else
+            element.InsertAfterSelf(paragraph);
+    }
+
+    private static DocumentFormat.OpenXml.Wordprocessing.Drawing CreateInlineDrawing(
+        string relId, long widthEmu, long heightEmu, string altText)
+    {
+        var element = new DocumentFormat.OpenXml.Wordprocessing.Drawing(
+            new DocumentFormat.OpenXml.Drawing.Wordprocessing.Inline(
+                new DocumentFormat.OpenXml.Drawing.Wordprocessing.Extent
+                {
+                    Cx = widthEmu,
+                    Cy = heightEmu
+                },
+                new DocumentFormat.OpenXml.Drawing.Wordprocessing.DocProperties
+                {
+                    Id = 1U,
+                    Name = "Image",
+                    Description = altText
+                },
+                new DocumentFormat.OpenXml.Drawing.Graphic(
+                    new DocumentFormat.OpenXml.Drawing.GraphicData(
+                        new DocumentFormat.OpenXml.Drawing.Pictures.Picture(
+                            new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualPictureProperties(
+                                new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualDrawingProperties
+                                {
+                                    Id = 0U,
+                                    Name = "Image"
+                                },
+                                new DocumentFormat.OpenXml.Drawing.Pictures.NonVisualPictureDrawingProperties()),
+                            new DocumentFormat.OpenXml.Drawing.Pictures.BlipFill(
+                                new DocumentFormat.OpenXml.Drawing.Blip
+                                {
+                                    Embed = relId
+                                },
+                                new DocumentFormat.OpenXml.Drawing.Stretch(
+                                    new DocumentFormat.OpenXml.Drawing.FillRectangle())),
+                            new DocumentFormat.OpenXml.Drawing.Pictures.ShapeProperties(
+                                new DocumentFormat.OpenXml.Drawing.Transform2D(
+                                    new DocumentFormat.OpenXml.Drawing.Offset { X = 0, Y = 0 },
+                                    new DocumentFormat.OpenXml.Drawing.Extents
+                                    {
+                                        Cx = widthEmu,
+                                        Cy = heightEmu
+                                    }),
+                                new DocumentFormat.OpenXml.Drawing.PresetGeometry(
+                                    new DocumentFormat.OpenXml.Drawing.AdjustValueList())
+                                {
+                                    Preset = DocumentFormat.OpenXml.Drawing.ShapeTypeValues.Rectangle
+                                }))
+                    )
+                    {
+                        Uri = "http://schemas.openxmlformats.org/drawingml/2006/picture"
+                    }))
+            {
+                DistanceFromTop = 0U,
+                DistanceFromBottom = 0U,
+                DistanceFromLeft = 0U,
+                DistanceFromRight = 0U
+            });
+
+        return element;
+    }
+
+    private static string GetImageContentType(string path)
+    {
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        return ext switch
+        {
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
+            ".gif" => "image/gif",
+            ".bmp" => "image/bmp",
+            ".svg" => "image/svg+xml",
+            _ => "image/png"
+        };
+    }
+
+    private static bool TryParseEmu(string value, out long emu)
+    {
+        emu = 0;
+        if (string.IsNullOrEmpty(value)) return false;
+
+        if (value.EndsWith("emu"))
+        {
+            return long.TryParse(value[..^3], out emu);
+        }
+        if (value.EndsWith("in"))
+        {
+            if (double.TryParse(value[..^2], out var inches))
+            {
+                emu = (long)(inches * 914400);
+                return true;
+            }
+        }
+        if (value.EndsWith("cm"))
+        {
+            if (double.TryParse(value[..^2], out var cm))
+            {
+                emu = (long)(cm * 360000);
+                return true;
+            }
+        }
+        if (value.EndsWith("pt"))
+        {
+            if (double.TryParse(value[..^2], out var pt))
+            {
+                emu = (long)(pt * 12700);
+                return true;
+            }
+        }
+        if (value.EndsWith("px"))
+        {
+            if (double.TryParse(value[..^2], out var px))
+            {
+                emu = (long)(px * 9525);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static void ExecuteInsertTable(OpenXmlElement element, InsertTableOperation operation)
+    {
+        var table = new Table();
+
+        // Add table properties
+        var tblProps = new TableProperties(
+            new TableBorders(
+                new TopBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4 },
+                new BottomBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4 },
+                new LeftBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4 },
+                new RightBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4 },
+                new InsideHorizontalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4 },
+                new InsideVerticalBorder { Val = new EnumValue<BorderValues>(BorderValues.Single), Size = 4 }
+            ));
+        table.AppendChild(tblProps);
+
+        // Create rows and cells
+        for (int r = 0; r < operation.Rows; r++)
+        {
+            var row = new TableRow();
+            for (int c = 0; c < operation.Columns; c++)
+            {
+                row.AppendChild(new TableCell(new Paragraph()));
+            }
+            table.AppendChild(row);
+        }
+
+        if (operation.Position == InsertPosition.Before)
+            element.InsertBeforeSelf(table);
+        else
+            element.InsertAfterSelf(table);
+    }
+
+    private static void ExecuteLink(
+        WordprocessingDocument wordDoc, OpenXmlElement element, LinkOperation operation)
+    {
+        var mainPart = wordDoc.MainDocumentPart
+            ?? throw new InvalidOperationException("Document has no main part.");
+
+        // Create hyperlink relationship
+        var relId = mainPart.AddHyperlinkRelationship(new Uri(operation.Url), true).Id;
+
+        if (element is Run run)
+        {
+            // Wrap the run in a hyperlink
+            var parent = run.Parent;
+            if (parent == null) return;
+
+            var hyperlink = new Hyperlink { Id = relId };
+
+            // Apply blue underline styling typical of links
+            var linkRun = (Run)run.CloneNode(true);
+            var rProps = linkRun.RunProperties ?? linkRun.PrependChild(new RunProperties());
+            rProps.Color = new Color { Val = "0563C1" };
+            rProps.Underline = new Underline { Val = UnderlineValues.Single };
+
+            hyperlink.AppendChild(linkRun);
+            run.InsertAfterSelf(hyperlink);
+            run.Remove();
+        }
+        else if (element is Paragraph para)
+        {
+            // Wrap all runs in the paragraph into a hyperlink
+            var hyperlink = new Hyperlink { Id = relId };
+            var runs = para.Elements<Run>().ToList();
+
+            foreach (var r in runs)
+            {
+                var linkRun = (Run)r.CloneNode(true);
+                var rProps = linkRun.RunProperties ?? linkRun.PrependChild(new RunProperties());
+                rProps.Color = new Color { Val = "0563C1" };
+                rProps.Underline = new Underline { Val = UnderlineValues.Single };
+                hyperlink.AppendChild(linkRun);
+                r.Remove();
+            }
+
+            para.AppendChild(hyperlink);
+        }
+    }
+
+    private static void ExecuteInsertList(
+        WordprocessingDocument wordDoc, OpenXmlElement element, InsertListOperation operation)
+    {
+        var mainPart = wordDoc.MainDocumentPart
+            ?? throw new InvalidOperationException("Document has no main part.");
+
+        // Ensure numbering part exists
+        var numberingPart = mainPart.NumberingDefinitionsPart;
+        if (numberingPart == null)
+        {
+            numberingPart = mainPart.AddNewPart<NumberingDefinitionsPart>();
+            numberingPart.Numbering = new Numbering();
+        }
+
+        var numbering = numberingPart.Numbering;
+
+        // Create abstract numbering definition
+        int abstractNumId = numbering.Elements<AbstractNum>().Count() + 1;
+        int numId = numbering.Elements<NumberingInstance>().Count() + 1;
+
+        var abstractNum = new AbstractNum { AbstractNumberId = abstractNumId };
+
+        if (operation.ListType == ListType.Ordered)
+        {
+            abstractNum.AppendChild(new Level(
+                new StartNumberingValue { Val = 1 },
+                new NumberingFormat { Val = NumberFormatValues.Decimal },
+                new LevelText { Val = "%1." })
+            { LevelIndex = 0 });
+            abstractNum.AppendChild(new Level(
+                new StartNumberingValue { Val = 1 },
+                new NumberingFormat { Val = NumberFormatValues.LowerLetter },
+                new LevelText { Val = "%2." })
+            { LevelIndex = 1 });
+        }
+        else
+        {
+            abstractNum.AppendChild(new Level(
+                new StartNumberingValue { Val = 1 },
+                new NumberingFormat { Val = NumberFormatValues.Bullet },
+                new LevelText { Val = "\u2022" })
+            { LevelIndex = 0 });
+            abstractNum.AppendChild(new Level(
+                new StartNumberingValue { Val = 1 },
+                new NumberingFormat { Val = NumberFormatValues.Bullet },
+                new LevelText { Val = "\u25E6" })
+            { LevelIndex = 1 });
+        }
+
+        numbering.InsertAt(abstractNum, 0);
+        numbering.AppendChild(new NumberingInstance(
+            new AbstractNumId { Val = abstractNumId })
+        { NumberID = numId });
+        numbering.Save();
+
+        // Create list item paragraphs and insert them
+        var insertionPoint = element;
+        foreach (var item in operation.Items)
+        {
+            int level = item.IsNested ? 1 : 0;
+            var listParagraph = new Paragraph(
+                new ParagraphProperties(
+                    new NumberingProperties(
+                        new NumberingLevelReference { Val = level },
+                        new NumberingId { Val = numId })),
+                new Run(new Text(item.Content.Text) { Space = SpaceProcessingModeValues.Preserve }));
+
+            if (operation.Position == InsertPosition.Before && insertionPoint == element)
+            {
+                element.InsertBeforeSelf(listParagraph);
+            }
+            else
+            {
+                insertionPoint.InsertAfterSelf(listParagraph);
+            }
+            insertionPoint = listParagraph;
+        }
+    }
+
+    private static void ExecuteSetRuns(
+        WordprocessingDocument wordDoc, OpenXmlElement element, SetRunsOperation operation)
+    {
+        var mainPart = wordDoc.MainDocumentPart;
+
+        Paragraph? targetParagraph = null;
+        if (element is Paragraph para)
+            targetParagraph = para;
+        else if (element is TableCell cell)
+            targetParagraph = cell.GetFirstChild<Paragraph>() ?? cell.AppendChild(new Paragraph());
+
+        if (targetParagraph == null) return;
+
+        // Remove all existing runs (preserve ParagraphProperties)
+        targetParagraph.RemoveAllChildren<Run>();
+        targetParagraph.RemoveAllChildren<Hyperlink>();
+
+        foreach (var runDef in operation.Runs)
+        {
+            var text = new Text(runDef.Content.Text) { Space = SpaceProcessingModeValues.Preserve };
+            var run = new Run(text);
+
+            // Apply run properties
+            if (runDef.Properties.Count > 0)
+            {
+                var rProps = new RunProperties();
+                string? href = null;
+
+                foreach (var (key, value) in runDef.Properties)
+                {
+                    var strValue = value?.ToString() ?? "";
+                    switch (key.ToLowerInvariant())
+                    {
+                        case "bold":
+                            if (strValue.Equals("true", StringComparison.OrdinalIgnoreCase))
+                                rProps.Bold = new Bold();
+                            break;
+                        case "italic":
+                            if (strValue.Equals("true", StringComparison.OrdinalIgnoreCase))
+                                rProps.Italic = new Italic();
+                            break;
+                        case "underline":
+                            rProps.Underline = new Underline
+                            {
+                                Val = strValue.ToLowerInvariant() switch
+                                {
+                                    "single" => UnderlineValues.Single,
+                                    "double" => UnderlineValues.Double,
+                                    "dotted" => UnderlineValues.Dotted,
+                                    "dashed" => UnderlineValues.Dash,
+                                    "wavy" => UnderlineValues.Wave,
+                                    "none" => UnderlineValues.None,
+                                    "true" => UnderlineValues.Single,
+                                    _ => UnderlineValues.Single
+                                }
+                            };
+                            break;
+                        case "strikethrough":
+                            rProps.Strike = new Strike
+                            {
+                                Val = strValue.Equals("true", StringComparison.OrdinalIgnoreCase)
+                            };
+                            break;
+                        case "font-name":
+                            rProps.RunFonts = new RunFonts { Ascii = strValue, HighAnsi = strValue };
+                            break;
+                        case "font-size":
+                            if (TryParsePoints(strValue, out double pts))
+                                rProps.FontSize = new FontSize { Val = ((int)(pts * 2)).ToString() };
+                            break;
+                        case "color":
+                            rProps.Color = new Color { Val = ResolveColorHex(strValue) };
+                            break;
+                        case "highlight":
+                            rProps.Highlight = new Highlight
+                            {
+                                Val = ResolveHighlightColor(strValue)
+                            };
+                            break;
+                        case "href":
+                            href = strValue;
+                            // Style as hyperlink
+                            rProps.Color ??= new Color { Val = "0563C1" };
+                            rProps.Underline ??= new Underline { Val = UnderlineValues.Single };
+                            break;
+                    }
+                }
+
+                run.PrependChild(rProps);
+
+                // If this run has an href, wrap it in a hyperlink
+                if (href != null && mainPart != null)
+                {
+                    var relId = mainPart.AddHyperlinkRelationship(new Uri(href), true).Id;
+                    var hyperlink = new Hyperlink(run) { Id = relId };
+                    targetParagraph.AppendChild(hyperlink);
+                    continue; // skip normal append
+                }
+            }
+
+            targetParagraph.AppendChild(run);
+        }
+    }
+
+    private static HighlightColorValues ResolveHighlightColor(string color)
+    {
+        return color.ToLowerInvariant() switch
+        {
+            "yellow" => HighlightColorValues.Yellow,
+            "green" => HighlightColorValues.Green,
+            "cyan" => HighlightColorValues.Cyan,
+            "magenta" => HighlightColorValues.Magenta,
+            "blue" => HighlightColorValues.Blue,
+            "red" => HighlightColorValues.Red,
+            "darkblue" => HighlightColorValues.DarkBlue,
+            "darkcyan" => HighlightColorValues.DarkCyan,
+            "darkgreen" => HighlightColorValues.DarkGreen,
+            "darkmagenta" => HighlightColorValues.DarkMagenta,
+            "darkred" => HighlightColorValues.DarkRed,
+            "darkyellow" => HighlightColorValues.DarkYellow,
+            "lightgray" or "lightgrey" => HighlightColorValues.LightGray,
+            "darkgray" or "darkgrey" => HighlightColorValues.DarkGray,
+            "black" => HighlightColorValues.Black,
+            "white" => HighlightColorValues.White,
+            _ => HighlightColorValues.Yellow
+        };
     }
 }

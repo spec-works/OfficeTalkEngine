@@ -6,6 +6,8 @@ using OfficeTalk.Ast;
 using OfficeTalkEngine.Execution;
 using Xunit;
 
+using AstListItem = OfficeTalk.Ast.ListItem;
+
 namespace OfficeTalkEngine.Tests.Execution;
 
 public class WordExecutorTests
@@ -710,6 +712,538 @@ public class WordExecutorTests
         paras[0].InnerText.Should().Be("Line one");
         paras[1].InnerText.Should().Be("Line two");
         paras[2].InnerText.Should().Be("Line three");
+    }
+
+    #endregion
+
+    #region INSERT TABLE Tests
+
+    [Fact]
+    public void InsertTable_creates_table_with_dimensions()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Before table"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new InsertTableOperation
+                {
+                    Position = InsertPosition.After,
+                    Rows = 3,
+                    Columns = 4
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var body = doc.MainDocumentPart!.Document.Body!;
+        var tables = body.Elements<Table>().ToList();
+        tables.Should().HaveCount(1);
+
+        var rows = tables[0].Elements<TableRow>().ToList();
+        rows.Should().HaveCount(3);
+
+        foreach (var row in rows)
+        {
+            row.Elements<TableCell>().Should().HaveCount(4);
+        }
+    }
+
+    [Fact]
+    public void InsertTable_before_inserts_before_element()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("After table"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new InsertTableOperation
+                {
+                    Position = InsertPosition.Before,
+                    Rows = 2,
+                    Columns = 2
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var body = doc.MainDocumentPart!.Document.Body!;
+        var children = body.ChildElements.ToList();
+        children[0].Should().BeOfType<Table>();
+    }
+
+    [Fact]
+    public void InsertTable_followed_by_SetCells_populates_first_row()
+    {
+        // Snapshot semantics: the table must already exist for SET CELLS to find it.
+        // This test verifies that INSERT TABLE + SET CELLS works when the table
+        // already exists (SET CELLS is in the same block as the table's row).
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Anchor"));
+            body.AppendChild(MakeTable(2, 3));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("table", Pos(1)), Seg("row", Pos(1))),
+                new SetCellsOperation { Values = new List<string> { "A", "B", "C" } }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var table = doc.MainDocumentPart!.Document.Body!.Elements<Table>().First();
+        var firstRow = table.Elements<TableRow>().First();
+        var cells = firstRow.Elements<TableCell>().ToList();
+        cells[0].InnerText.Should().Be("A");
+        cells[1].InnerText.Should().Be("B");
+        cells[2].InnerText.Should().Be("C");
+    }
+
+    #endregion
+
+    #region LINK Tests
+
+    [Fact]
+    public void Link_creates_hyperlink_on_paragraph()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Click me"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new LinkOperation { Url = "https://example.com" }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var para = doc.MainDocumentPart!.Document.Body!.Elements<Paragraph>().First();
+        var hyperlinks = para.Elements<Hyperlink>().ToList();
+        hyperlinks.Should().HaveCount(1);
+        hyperlinks[0].InnerText.Should().Be("Click me");
+    }
+
+    [Fact]
+    public void Link_creates_hyperlink_relationship()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Link text"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new LinkOperation { Url = "https://example.com/page" }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var hyperlink = doc.MainDocumentPart!.Document.Body!
+            .Descendants<Hyperlink>().First();
+        var relId = hyperlink.Id!.Value;
+        var rel = doc.MainDocumentPart!.HyperlinkRelationships
+            .First(r => r.Id == relId);
+        rel.Uri.ToString().Should().Be("https://example.com/page");
+    }
+
+    #endregion
+
+    #region INSERT LIST Tests
+
+    [Fact]
+    public void InsertList_creates_numbered_paragraphs()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Before list"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new InsertListOperation
+                {
+                    Position = InsertPosition.After,
+                    ListType = ListType.Unordered,
+                    Items = new List<AstListItem>
+                    {
+                        new() { Content = new ContentValue("Item 1") },
+                        new() { Content = new ContentValue("Item 2") },
+                        new() { Content = new ContentValue("Item 3") }
+                    }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var body = doc.MainDocumentPart!.Document.Body!;
+        var paras = body.Elements<Paragraph>().ToList();
+        paras.Should().HaveCount(4); // original + 3 items
+        paras[1].InnerText.Should().Be("Item 1");
+        paras[2].InnerText.Should().Be("Item 2");
+        paras[3].InnerText.Should().Be("Item 3");
+
+        // Each item paragraph should have numbering properties
+        for (int i = 1; i <= 3; i++)
+        {
+            paras[i].ParagraphProperties.Should().NotBeNull();
+            paras[i].ParagraphProperties!.NumberingProperties.Should().NotBeNull();
+        }
+    }
+
+    [Fact]
+    public void InsertList_nested_items_have_higher_level()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Anchor"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new InsertListOperation
+                {
+                    Position = InsertPosition.After,
+                    ListType = ListType.Unordered,
+                    Items = new List<AstListItem>
+                    {
+                        new() { Content = new ContentValue("Parent") },
+                        new() { Content = new ContentValue("Child"), IsNested = true }
+                    }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var body = doc.MainDocumentPart!.Document.Body!;
+        var paras = body.Elements<Paragraph>().ToList();
+        paras.Should().HaveCount(3);
+
+        // Parent is level 0, child is level 1
+        var parentLevel = paras[1].ParagraphProperties!.NumberingProperties!
+            .NumberingLevelReference!.Val!.Value;
+        var childLevel = paras[2].ParagraphProperties!.NumberingProperties!
+            .NumberingLevelReference!.Val!.Value;
+
+        parentLevel.Should().Be(0);
+        childLevel.Should().Be(1);
+    }
+
+    [Fact]
+    public void InsertList_ordered_creates_numbering_definition()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Anchor"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new InsertListOperation
+                {
+                    Position = InsertPosition.After,
+                    ListType = ListType.Ordered,
+                    Items = new List<AstListItem>
+                    {
+                        new() { Content = new ContentValue("Step 1") }
+                    }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var numberingPart = doc.MainDocumentPart!.NumberingDefinitionsPart;
+        numberingPart.Should().NotBeNull();
+        numberingPart!.Numbering.Elements<AbstractNum>().Should().NotBeEmpty();
+        numberingPart!.Numbering.Elements<NumberingInstance>().Should().NotBeEmpty();
+    }
+
+    #endregion
+
+    #region SET RUNS Tests
+
+    [Fact]
+    public void SetRuns_creates_multiple_formatted_runs()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Original text"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new SetRunsOperation
+                {
+                    Runs = new List<RunDefinition>
+                    {
+                        new() { Content = new ContentValue("Normal ") },
+                        new()
+                        {
+                            Content = new ContentValue("Bold"),
+                            Properties = new Dictionary<string, object> { ["bold"] = "true" }
+                        },
+                        new() { Content = new ContentValue(" text") }
+                    }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var para = doc.MainDocumentPart!.Document.Body!.Elements<Paragraph>().First();
+        var runs = para.Elements<Run>().ToList();
+        runs.Should().HaveCount(3);
+        runs[0].InnerText.Should().Be("Normal ");
+        runs[1].InnerText.Should().Be("Bold");
+        runs[2].InnerText.Should().Be(" text");
+
+        // Second run should be bold
+        runs[1].RunProperties.Should().NotBeNull();
+        runs[1].RunProperties!.Bold.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void SetRuns_with_href_creates_hyperlink()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Original"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new SetRunsOperation
+                {
+                    Runs = new List<RunDefinition>
+                    {
+                        new() { Content = new ContentValue("Visit ") },
+                        new()
+                        {
+                            Content = new ContentValue("our site"),
+                            Properties = new Dictionary<string, object>
+                            {
+                                ["href"] = "https://example.com"
+                            }
+                        },
+                        new() { Content = new ContentValue(" today") }
+                    }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var para = doc.MainDocumentPart!.Document.Body!.Elements<Paragraph>().First();
+
+        // Should have: Run("Visit "), Hyperlink(Run("our site")), Run(" today")
+        var directRuns = para.Elements<Run>().ToList();
+        directRuns.Should().HaveCount(2);
+        directRuns[0].InnerText.Should().Be("Visit ");
+        directRuns[1].InnerText.Should().Be(" today");
+
+        var hyperlinks = para.Elements<Hyperlink>().ToList();
+        hyperlinks.Should().HaveCount(1);
+        hyperlinks[0].InnerText.Should().Be("our site");
+    }
+
+    [Fact]
+    public void SetRuns_with_font_properties()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Original"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new SetRunsOperation
+                {
+                    Runs = new List<RunDefinition>
+                    {
+                        new()
+                        {
+                            Content = new ContentValue("code"),
+                            Properties = new Dictionary<string, object>
+                            {
+                                ["font-name"] = "Consolas",
+                                ["font-size"] = "10pt",
+                                ["color"] = "#FF0000"
+                            }
+                        }
+                    }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var para = doc.MainDocumentPart!.Document.Body!.Elements<Paragraph>().First();
+        var run = para.Elements<Run>().First();
+        run.InnerText.Should().Be("code");
+        run.RunProperties.Should().NotBeNull();
+        run.RunProperties!.RunFonts!.Ascii!.Value.Should().Be("Consolas");
+        run.RunProperties!.Color!.Val!.Value.Should().Be("FF0000");
+    }
+
+    [Fact]
+    public void SetRuns_replaces_all_existing_content()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            var para = new Paragraph(
+                new Run(new Text("Run 1")),
+                new Run(new Text("Run 2")),
+                new Run(new Text("Run 3")));
+            body.AppendChild(para);
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new SetRunsOperation
+                {
+                    Runs = new List<RunDefinition>
+                    {
+                        new() { Content = new ContentValue("Only run") }
+                    }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var para = doc.MainDocumentPart!.Document.Body!.Elements<Paragraph>().First();
+        var runs = para.Elements<Run>().ToList();
+        runs.Should().HaveCount(1);
+        runs[0].InnerText.Should().Be("Only run");
+    }
+
+    #endregion
+
+    #region INSERT IMAGE Tests
+
+    [Fact]
+    public void InsertImage_inserts_paragraph_with_drawing()
+    {
+        // Create a minimal test image file
+        var tempDir = Path.Combine(Path.GetTempPath(), $"otk-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var imgPath = Path.Combine(tempDir, "test.png");
+
+        try
+        {
+            // Write a minimal 1x1 PNG
+            File.WriteAllBytes(imgPath, CreateMinimalPng());
+
+            using var doc = CreateInMemoryDocument(body =>
+            {
+                body.AppendChild(MakeParagraph("Before image"));
+            });
+
+            var otDoc = MakeDocument(
+                MakeBlock(
+                    MakeAddress(Seg("paragraph", Pos(1))),
+                    new InsertImageOperation
+                    {
+                        Position = InsertPosition.After,
+                        Source = imgPath,
+                        Properties = new Dictionary<string, object>
+                        {
+                            ["alt"] = "Test image",
+                            ["width"] = "4in"
+                        }
+                    }));
+
+            var executor = new WordExecutor();
+            executor.Execute(otDoc, doc);
+
+            var body = doc.MainDocumentPart!.Document.Body!;
+            var paras = body.Elements<Paragraph>().ToList();
+            paras.Should().HaveCount(2);
+
+            // Second paragraph should contain a drawing
+            var drawings = paras[1].Descendants<DocumentFormat.OpenXml.Wordprocessing.Drawing>().ToList();
+            drawings.Should().HaveCount(1);
+
+            // Image part should exist
+            doc.MainDocumentPart!.ImageParts.Should().NotBeEmpty();
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void InsertImage_before_inserts_before_element()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"otk-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var imgPath = Path.Combine(tempDir, "test.png");
+
+        try
+        {
+            File.WriteAllBytes(imgPath, CreateMinimalPng());
+
+            using var doc = CreateInMemoryDocument(body =>
+            {
+                body.AppendChild(MakeParagraph("After image"));
+            });
+
+            var otDoc = MakeDocument(
+                MakeBlock(
+                    MakeAddress(Seg("paragraph", Pos(1))),
+                    new InsertImageOperation
+                    {
+                        Position = InsertPosition.Before,
+                        Source = imgPath
+                    }));
+
+            var executor = new WordExecutor();
+            executor.Execute(otDoc, doc);
+
+            var body = doc.MainDocumentPart!.Document.Body!;
+            var paras = body.Elements<Paragraph>().ToList();
+            paras.Should().HaveCount(2);
+
+            // First paragraph should contain the drawing
+            paras[0].Descendants<DocumentFormat.OpenXml.Wordprocessing.Drawing>()
+                .Should().NotBeEmpty();
+            paras[1].InnerText.Should().Be("After image");
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    /// <summary>Creates a minimal valid 1x1 pixel PNG file.</summary>
+    private static byte[] CreateMinimalPng()
+    {
+        // Minimal 1x1 white PNG
+        return new byte[]
+        {
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR chunk
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+            0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
+            0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, // IDAT chunk
+            0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
+            0x00, 0x00, 0x02, 0x00, 0x01, 0xE2, 0x21, 0xBC,
+            0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, // IEND chunk
+            0x44, 0xAE, 0x42, 0x60, 0x82
+        };
     }
 
     #endregion

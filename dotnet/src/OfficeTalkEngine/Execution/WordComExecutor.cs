@@ -1102,6 +1102,21 @@ public class WordComExecutor : IOfficeTalkExecutor
             case CommentOperation comment:
                 ExecuteComment(doc, range, comment);
                 break;
+            case InsertImageOperation:
+                throw new NotImplementedException(
+                    "INSERT IMAGE is not yet supported by the COM executor. Use the OpenXML executor.");
+            case InsertTableOperation:
+                throw new NotImplementedException(
+                    "INSERT TABLE is not yet supported by the COM executor. Use the OpenXML executor.");
+            case LinkOperation:
+                throw new NotImplementedException(
+                    "LINK is not yet supported by the COM executor. Use the OpenXML executor.");
+            case InsertListOperation:
+                throw new NotImplementedException(
+                    "INSERT LIST is not yet supported by the COM executor. Use the OpenXML executor.");
+            case SetRunsOperation:
+                throw new NotImplementedException(
+                    "SET RUNS is not yet supported by the COM executor. Use the OpenXML executor.");
             default:
                 throw new NotSupportedException(
                     $"Operation type '{operation.GetType().Name}' is not supported by the COM executor.");
