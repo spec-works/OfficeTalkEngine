@@ -185,11 +185,45 @@ public static class ApplyCommand
                     break;
 
                 case ".xlsx" or ".xlsm":
-                    executor = new ExcelExecutor();
+                    bool useExcelCom = false;
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && outputPath == null)
+                    {
+                        useExcelCom = ExcelComExecutor.IsAvailable(target.FullName);
+                    }
+
+                    if (useExcelCom)
+                    {
+                        if (verbose)
+                            Console.WriteLine("Excel is open with target workbook \u2014 using COM executor.");
+#pragma warning disable CA1416
+                        executor = new ExcelComExecutor();
+#pragma warning restore CA1416
+                    }
+                    else
+                    {
+                        executor = new ExcelExecutor();
+                    }
                     break;
 
                 case ".pptx" or ".pptm":
-                    executor = new PowerPointExecutor();
+                    bool usePptCom = false;
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && outputPath == null)
+                    {
+                        usePptCom = PowerPointComExecutor.IsAvailable(target.FullName);
+                    }
+
+                    if (usePptCom)
+                    {
+                        if (verbose)
+                            Console.WriteLine("PowerPoint is open with target presentation \u2014 using COM executor.");
+#pragma warning disable CA1416
+                        executor = new PowerPointComExecutor();
+#pragma warning restore CA1416
+                    }
+                    else
+                    {
+                        executor = new PowerPointExecutor();
+                    }
                     break;
 
                 default:
