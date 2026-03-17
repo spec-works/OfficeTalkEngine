@@ -1309,6 +1309,33 @@ public class WordComExecutor : IOfficeTalkExecutor
                 case "style":
                     try { range.Style = strValue; } catch { }
                     break;
+                case "background-color":
+                case "fill-color":
+                    try
+                    {
+                        range.Shading.BackgroundPatternColor = ParseColorToRgb(strValue);
+                    }
+                    catch { }
+                    break;
+                case "highlight":
+                    try
+                    {
+                        range.HighlightColorIndex = ResolveHighlightColorIndex(strValue);
+                    }
+                    catch { }
+                    break;
+                case "border-top":
+                    try { ApplyComBorder(range, 1, strValue, operation.Properties); } catch { }
+                    break;
+                case "border-bottom":
+                    try { ApplyComBorder(range, 3, strValue, operation.Properties); } catch { }
+                    break;
+                case "border-left":
+                    try { ApplyComBorder(range, 2, strValue, operation.Properties); } catch { }
+                    break;
+                case "border-right":
+                    try { ApplyComBorder(range, 4, strValue, operation.Properties); } catch { }
+                    break;
             }
         }
     }
@@ -1794,6 +1821,13 @@ public class WordComExecutor : IOfficeTalkExecutor
                         // wdYellow=7, wdGreen=4, wdCyan=8, etc.
                         formattedRange.HighlightColorIndex = ResolveHighlightColorIndex(strValue);
                         break;
+                    case "background-color":
+                        try
+                        {
+                            formattedRange.Shading.BackgroundPatternColor = ParseColorToRgb(strValue);
+                        }
+                        catch { }
+                        break;
                     case "href":
                         // Create hyperlink on this run
                         doc.Hyperlinks.Add(formattedRange, strValue, Type.Missing, Type.Missing, text);
@@ -1803,6 +1837,39 @@ public class WordComExecutor : IOfficeTalkExecutor
 
             insertPos += text.Length;
         }
+    }
+
+    private static void ApplyComBorder(dynamic range, int borderIndex, string style,
+        Dictionary<string, object> allProperties)
+    {
+        // WdBorderType: wdBorderTop=1(-1), wdBorderLeft=2(-2), wdBorderBottom=3(-3), wdBorderRight=4(-4)
+        // COM uses negative indices
+        dynamic border = range.Borders[-borderIndex];
+
+        // WdLineStyle: wdLineStyleSingle=1, wdLineStyleDouble=7, wdLineStyleThickThinSmallGap=3(?),
+        // wdLineStyleDash=5(?), wdLineStyleDot=6(?)
+        border.LineStyle = style.ToLowerInvariant() switch
+        {
+            "single" => 1,   // wdLineStyleSingle
+            "double" => 7,   // wdLineStyleDouble
+            "thick" => 1,    // wdLineStyleSingle (thick via width)
+            "dashed" => 5,   // wdLineStyleDashSmallGap
+            "dotted" => 6,   // wdLineStyleDot
+            "none" => 0,     // wdLineStyleNone
+            _ => 1
+        };
+
+        if (allProperties.TryGetValue("border-color", out var colorVal))
+            border.Color = ParseColorToRgb(colorVal?.ToString() ?? "");
+
+        if (allProperties.TryGetValue("border-width", out var widthVal) &&
+            TryParsePoints(widthVal?.ToString() ?? "", out double widthPts))
+            border.LineWidth = style.ToLowerInvariant() == "thick"
+                ? 6  // wdLineWidth150pt
+                : (int)(widthPts * 4); // approximate quarter-point units
+
+        if (style.ToLowerInvariant() == "thick")
+            border.LineWidth = 6; // wdLineWidth150pt
     }
 
     private static int ResolveHighlightColorIndex(string color)

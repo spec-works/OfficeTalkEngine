@@ -1247,4 +1247,189 @@ public class WordExecutorTests
     }
 
     #endregion
+
+    #region FORMAT — Background Color & Borders
+
+    [Fact]
+    public void Format_BackgroundColor_AppliesShadingToRuns()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Code text"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new FormatOperation
+                {
+                    Properties = new Dictionary<string, object> { ["background-color"] = "#F0F0F0" }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var run = doc.MainDocumentPart!.Document.Body!.Elements<Paragraph>().First()
+            .Elements<Run>().First();
+        run.RunProperties.Should().NotBeNull();
+        run.RunProperties!.Shading.Should().NotBeNull();
+        run.RunProperties!.Shading!.Fill!.Value.Should().Be("F0F0F0");
+    }
+
+    [Fact]
+    public void Format_Highlight_AppliesHighlightToRuns()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Highlighted"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new FormatOperation
+                {
+                    Properties = new Dictionary<string, object> { ["highlight"] = "yellow" }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var run = doc.MainDocumentPart!.Document.Body!.Elements<Paragraph>().First()
+            .Elements<Run>().First();
+        run.RunProperties.Should().NotBeNull();
+        run.RunProperties!.Highlight.Should().NotBeNull();
+        run.RunProperties!.Highlight!.Val!.Value.Should().Be(HighlightColorValues.Yellow);
+    }
+
+    [Fact]
+    public void Format_BorderBottom_CreatesParagraphBorder()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph(""));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new FormatOperation
+                {
+                    Properties = new Dictionary<string, object>
+                    {
+                        ["border-bottom"] = "single",
+                        ["border-color"] = "#CCCCCC"
+                    }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var para = doc.MainDocumentPart!.Document.Body!.Elements<Paragraph>().First();
+        para.ParagraphProperties.Should().NotBeNull();
+        var borders = para.ParagraphProperties!.ParagraphBorders;
+        borders.Should().NotBeNull();
+        borders!.BottomBorder.Should().NotBeNull();
+        borders.BottomBorder!.Val!.Value.Should().Be(BorderValues.Single);
+        borders.BottomBorder!.Color!.Value.Should().Be("CCCCCC");
+    }
+
+    [Fact]
+    public void Format_AllBorderSides_CreatesAllBorders()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("Boxed"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new FormatOperation
+                {
+                    Properties = new Dictionary<string, object>
+                    {
+                        ["border-top"] = "single",
+                        ["border-bottom"] = "single",
+                        ["border-left"] = "single",
+                        ["border-right"] = "single"
+                    }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var para = doc.MainDocumentPart!.Document.Body!.Elements<Paragraph>().First();
+        var borders = para.ParagraphProperties!.ParagraphBorders;
+        borders.Should().NotBeNull();
+        borders!.TopBorder.Should().NotBeNull();
+        borders!.BottomBorder.Should().NotBeNull();
+        borders!.LeftBorder.Should().NotBeNull();
+        borders!.RightBorder.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void SetRuns_BackgroundColor_AppliesShadingToRun()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph("old"));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new SetRunsOperation
+                {
+                    Runs = new List<RunDefinition>
+                    {
+                        new() { Content = new ContentValue("code"),
+                            Properties = new Dictionary<string, object>
+                            {
+                                ["font-name"] = "Consolas",
+                                ["background-color"] = "#F5F5F5"
+                            }
+                        }
+                    }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var run = doc.MainDocumentPart!.Document.Body!.Elements<Paragraph>().First()
+            .Elements<Run>().First();
+        run.RunProperties.Should().NotBeNull();
+        run.RunProperties!.Shading.Should().NotBeNull();
+        run.RunProperties!.Shading!.Fill!.Value.Should().Be("F5F5F5");
+        run.RunProperties!.RunFonts!.Ascii!.Value.Should().Be("Consolas");
+    }
+
+    [Fact]
+    public void Format_BorderBottomDouble_UsesDoubleStyle()
+    {
+        using var doc = CreateInMemoryDocument(body =>
+        {
+            body.AppendChild(MakeParagraph(""));
+        });
+
+        var otDoc = MakeDocument(
+            MakeBlock(
+                MakeAddress(Seg("paragraph", Pos(1))),
+                new FormatOperation
+                {
+                    Properties = new Dictionary<string, object>
+                    {
+                        ["border-bottom"] = "double"
+                    }
+                }));
+
+        var executor = new WordExecutor();
+        executor.Execute(otDoc, doc);
+
+        var para = doc.MainDocumentPart!.Document.Body!.Elements<Paragraph>().First();
+        var borders = para.ParagraphProperties!.ParagraphBorders;
+        borders!.BottomBorder!.Val!.Value.Should().Be(BorderValues.Double);
+    }
+
+    #endregion
 }

@@ -466,6 +466,28 @@ public class WordExecutor : IOfficeTalkExecutor
                         var sId = strValue.Replace(" ", "");
                         pProps.ParagraphStyleId = new ParagraphStyleId { Val = sId };
                         break;
+
+                    // Run-level background/shading (applied to runs below)
+                    case "background-color":
+                        runProps ??= new RunProperties();
+                        runProps.Shading = new Shading
+                        {
+                            Fill = ResolveColorHex(strValue),
+                            Val = ShadingPatternValues.Clear
+                        };
+                        break;
+                    case "highlight":
+                        runProps ??= new RunProperties();
+                        runProps.Highlight = new Highlight { Val = ResolveHighlightColor(strValue) };
+                        break;
+
+                    // Paragraph border properties
+                    case "border-top":
+                    case "border-bottom":
+                    case "border-left":
+                    case "border-right":
+                        ApplyParagraphBorder(pProps, key.ToLowerInvariant(), strValue, operation.Properties);
+                        break;
                 }
             }
 
@@ -526,6 +548,18 @@ public class WordExecutor : IOfficeTalkExecutor
                         runProps ??= new RunProperties();
                         runProps.Color = new Color { Val = ResolveColorHex(strValue) };
                         break;
+                    case "background-color":
+                        runProps ??= new RunProperties();
+                        runProps.Shading = new Shading
+                        {
+                            Fill = ResolveColorHex(strValue),
+                            Val = ShadingPatternValues.Clear
+                        };
+                        break;
+                    case "highlight":
+                        runProps ??= new RunProperties();
+                        runProps.Highlight = new Highlight { Val = ResolveHighlightColor(strValue) };
+                        break;
                 }
             }
             if (runProps != null)
@@ -565,6 +599,8 @@ public class WordExecutor : IOfficeTalkExecutor
         if (source.RunFonts != null) target.RunFonts = (RunFonts)source.RunFonts.CloneNode(true);
         if (source.FontSize != null) target.FontSize = (FontSize)source.FontSize.CloneNode(true);
         if (source.Color != null) target.Color = (Color)source.Color.CloneNode(true);
+        if (source.Shading != null) target.Shading = (Shading)source.Shading.CloneNode(true);
+        if (source.Highlight != null) target.Highlight = (Highlight)source.Highlight.CloneNode(true);
     }
 
     private static bool TryParsePoints(string value, out double points)
@@ -1285,6 +1321,13 @@ public class WordExecutor : IOfficeTalkExecutor
                                 Val = ResolveHighlightColor(strValue)
                             };
                             break;
+                        case "background-color":
+                            rProps.Shading = new Shading
+                            {
+                                Fill = ResolveColorHex(strValue),
+                                Val = ShadingPatternValues.Clear
+                            };
+                            break;
                         case "href":
                             href = strValue;
                             // Style as hyperlink
@@ -1307,6 +1350,53 @@ public class WordExecutor : IOfficeTalkExecutor
             }
 
             targetParagraph.AppendChild(run);
+        }
+    }
+
+    private static void ApplyParagraphBorder(
+        ParagraphProperties pProps, string side, string style,
+        Dictionary<string, object> allProperties)
+    {
+        var borders = pProps.ParagraphBorders ?? (pProps.ParagraphBorders = new ParagraphBorders());
+
+        var borderVal = style.ToLowerInvariant() switch
+        {
+            "single" => BorderValues.Single,
+            "double" => BorderValues.Double,
+            "thick" => BorderValues.Thick,
+            "dashed" => BorderValues.Dashed,
+            "dotted" => BorderValues.Dotted,
+            "none" => BorderValues.None,
+            _ => BorderValues.Single
+        };
+
+        // Resolve shared border-color and border-width
+        string? colorHex = null;
+        uint sizeEighths = 4; // default 0.5pt (4 eighths of a point)
+        if (allProperties.TryGetValue("border-color", out var colorVal))
+            colorHex = ResolveColorHex(colorVal?.ToString() ?? "");
+        if (allProperties.TryGetValue("border-width", out var widthVal) &&
+            TryParsePoints(widthVal?.ToString() ?? "", out double widthPts))
+            sizeEighths = (uint)(widthPts * 8);
+
+        switch (side)
+        {
+            case "border-top":
+                borders.TopBorder = new TopBorder { Val = borderVal, Size = sizeEighths, Space = 1 };
+                if (colorHex != null) borders.TopBorder.Color = colorHex;
+                break;
+            case "border-bottom":
+                borders.BottomBorder = new BottomBorder { Val = borderVal, Size = sizeEighths, Space = 1 };
+                if (colorHex != null) borders.BottomBorder.Color = colorHex;
+                break;
+            case "border-left":
+                borders.LeftBorder = new LeftBorder { Val = borderVal, Size = sizeEighths, Space = 1 };
+                if (colorHex != null) borders.LeftBorder.Color = colorHex;
+                break;
+            case "border-right":
+                borders.RightBorder = new RightBorder { Val = borderVal, Size = sizeEighths, Space = 1 };
+                if (colorHex != null) borders.RightBorder.Color = colorHex;
+                break;
         }
     }
 
