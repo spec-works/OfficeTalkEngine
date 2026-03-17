@@ -98,16 +98,43 @@ dotnet/
 │       │   └── WordAddressResolver.cs
 │       ├── Execution/           # Operation execution
 │       │   ├── IOfficeTalkExecutor.cs
-│       │   └── WordExecutor.cs
+│       │   ├── WordExecutor.cs        # OpenXML SDK executor
+│       │   └── WordComExecutor.cs     # Word COM Interop executor (live editing)
 │       └── Validation/          # Semantic validation
 │           └── SemanticValidator.cs
 └── tests/
-    └── OfficeTalkEngine.Tests/
-        ├── Addressing/
-        │   └── WordAddressResolverTests.cs
-        └── Execution/
-            └── WordExecutorTests.cs
+    ├── OfficeTalkEngine.Tests/
+    │   ├── Addressing/
+    │   │   └── WordAddressResolverTests.cs
+    │   └── Execution/
+    │       └── WordExecutorTests.cs
+    └── OfficeTalkEngine.ParityTests/   # COM vs OpenXML parity tests
+        └── ParityTests.cs
 ```
+
+## Supported Operations
+
+| Operation | Word (OpenXML) | Word (COM) | Excel | PowerPoint |
+|-----------|:-:|:-:|:-:|:-:|
+| SET | ✅ | ✅ | ✅ | ✅ |
+| REPLACE / REPLACE ALL | ✅ | ✅ | — | — |
+| INSERT BEFORE/AFTER | ✅ | ✅ | — | — |
+| DELETE | ✅ | ✅ | ✅ | ✅ |
+| APPEND / PREPEND | ✅ | ✅ | — | — |
+| FORMAT | ✅ | ✅ | ✅ | ✅ |
+| STYLE | ✅ | ✅ | — | — |
+| COMMENT | ✅ | ✅ | ✅ | — |
+| INSERT ROW/COLUMN | ✅ | ✅ | — | — |
+| SET CELLS / MERGE CELLS | ✅ | ✅ | — | — |
+| INSERT IMAGE | ✅ | ✅ | — | — |
+| INSERT TABLE | ✅ | ✅ | — | — |
+| LINK | ✅ | ✅ | — | — |
+| INSERT LIST | ✅ | ✅ | — | — |
+| SET RUNS | ✅ | ✅ | — | — |
+| INSERT SLIDE / DUPLICATE | — | — | — | ✅ |
+| ADD/RENAME/DELETE SHEET | — | — | ✅ | — |
+| INSPECT | ✅ | ✅ | ✅ | ✅ |
+| PROPERTY | ✅ | ✅ | — | — |
 
 ## Dependencies
 
