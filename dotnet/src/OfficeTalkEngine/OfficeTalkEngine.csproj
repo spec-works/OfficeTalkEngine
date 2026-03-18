@@ -4,7 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackageId>SpecWorks.OfficeTalkEngine</PackageId>
-    <Version>0.5.0</Version>
+    <Version>0.6.0</Version>
     <Authors>SpecWorks</Authors>
     <Company>SpecWorks</Company>
     <Description>Execution engine for OfficeTalk documents — resolves addresses and applies deterministic operations to Microsoft Office documents via OpenXML SDK.</Description>
@@ -28,7 +28,7 @@
     <ProjectReference Include="..\..\..\..\OfficeTalk\dotnet\src\OfficeTalk\OfficeTalk.csproj" />
   </ItemGroup>
   <ItemGroup Condition="!Exists('..\..\..\..\OfficeTalk\dotnet\src\OfficeTalk\OfficeTalk.csproj')">
-    <PackageReference Include="SpecWorks.OfficeTalk" Version="0.4.0" />
+    <PackageReference Include="SpecWorks.OfficeTalk" Version="0.5.0" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
