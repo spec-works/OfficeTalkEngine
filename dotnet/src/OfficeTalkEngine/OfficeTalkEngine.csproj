@@ -22,8 +22,13 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.1.0" />
-    <!-- Local project reference for development; switch to NuGet for release -->
+  </ItemGroup>
+  <!-- Use local project reference when sibling OfficeTalk repo exists; NuGet package otherwise (CI) -->
+  <ItemGroup Condition="Exists('..\..\..\..\OfficeTalk\dotnet\src\OfficeTalk\OfficeTalk.csproj')">
     <ProjectReference Include="..\..\..\..\OfficeTalk\dotnet\src\OfficeTalk\OfficeTalk.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="!Exists('..\..\..\..\OfficeTalk\dotnet\src\OfficeTalk\OfficeTalk.csproj')">
+    <PackageReference Include="SpecWorks.OfficeTalk" Version="0.4.0" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
