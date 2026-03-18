@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+      <title>OfficeTalkEngine — .NET Library | OfficeTalkEngine Documentation </title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta name="title" content="OfficeTalkEngine — .NET Library | OfficeTalkEngine Documentation ">
+      
+      
+      <link rel="icon" href="images/logo.svg">
+      <link rel="stylesheet" href="public/docfx.min.css">
+      <link rel="stylesheet" href="public/main.css">
+      <meta name="docfx:navrel" content="toc.html">
+      <meta name="docfx:tocrel" content="toc.html">
+      
+      <meta name="docfx:rel" content="">
+      
+      
+      <meta name="docfx:docurl" content="https://github.com/spec-works/OfficeTalkEngine/blob/main/docs/index.md/#L1">
+      <meta name="loc:inThisArticle" content="In this article">
+      <meta name="loc:searchResultsCount" content="{count} results for &quot;{query}&quot;">
+      <meta name="loc:searchNoResults" content="No results for &quot;{query}&quot;">
+      <meta name="loc:tocFilter" content="Filter by title">
+      <meta name="loc:nextArticle" content="Next">
+      <meta name="loc:prevArticle" content="Previous">
+      <meta name="loc:themeLight" content="Light">
+      <meta name="loc:themeDark" content="Dark">
+      <meta name="loc:themeAuto" content="Auto">
+      <meta name="loc:changeTheme" content="Change theme">
+      <meta name="loc:copy" content="Copy">
+      <meta name="loc:downloadPdf" content="Download PDF">
+
+      <script type="module" src="./public/docfx.min.js"></script>
+
+      <script>
+        const theme = localStorage.getItem('theme') || 'auto'
+        document.documentElement.setAttribute('data-bs-theme', theme === 'auto' ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : theme)
+      </script>
+
+  </head>
+
+  <body class="tex2jax_ignore" data-layout="" data-yaml-mime="">
+    <header class="bg-body border-bottom">
+      <nav id="autocollapse" class="navbar navbar-expand-md" role="navigation">
+        <div class="container-xxl flex-nowrap">
+          <a class="navbar-brand" href="index.html">
+            <img id="logo" class="svg" src="images/logo.svg" alt="OfficeTalkEngine">
+            OfficeTalkEngine
+          </a>
+          <button class="btn btn-lg d-md-none border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navpanel" aria-controls="navpanel" aria-expanded="false" aria-label="Toggle navigation">
+            <i class="bi bi-three-dots"></i>
+          </button>
+          <div class="collapse navbar-collapse" id="navpanel">
+            <div id="navbar">
+              <form class="search" role="search" id="search">
+                <i class="bi bi-search"></i>
+                <input class="form-control" id="search-query" type="search" disabled placeholder="Search" autocomplete="off" aria-label="Search">
+              </form>
+            </div>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="container-xxl">
+
+      <div class="content">
+        <div class="actionbar">
+
+          <nav id="breadcrumb"></nav>
+        </div>
+
+        <article data-uid="">
+<h1 id="officetalkengine--net-library">OfficeTalkEngine — .NET Library</h1>
+
+<p>.NET 9 execution engine for <a href="https://github.com/spec-works/OfficeTalk">OfficeTalk</a> documents. Resolves addresses, validates semantics, and applies deterministic operations to Microsoft Office documents via the OpenXML SDK.</p>
+<h2 id="quick-start">Quick Start</h2>
+<h3 id="parse-and-execute">Parse and Execute</h3>
+<pre><code class="lang-csharp">using OfficeTalk.Parsing;
+using OfficeTalkEngine.Execution;
+
+var source = &quot;&quot;&quot;
+    OFFICETALK/1.0 Word
+    AT paragraph[1]
+        SET &quot;Hello, World!&quot;
+    &quot;&quot;&quot;;
+
+// Parse the OfficeTalk source
+var parser = new OfficeTalkParser();
+var document = parser.Parse(source);
+
+// Execute against a Word document
+var executor = new WordExecutor();
+executor.Execute(document, &quot;template.docx&quot;, &quot;output.docx&quot;);
+</code></pre>
+<h3 id="semantic-validation">Semantic Validation</h3>
+<pre><code class="lang-csharp">using OfficeTalk.Parsing;
+using OfficeTalkEngine.Validation;
+
+var parser = new OfficeTalkParser();
+var document = parser.Parse(source);
+
+var validator = new SemanticValidator();
+var result = validator.Validate(document, &quot;template.docx&quot;);
+
+if (!result.IsValid)
+{
+    foreach (var error in result.Errors)
+        Console.WriteLine($&quot;Error: {error}&quot;);
+}
+</code></pre>
+<h3 id="address-resolution">Address Resolution</h3>
+<pre><code class="lang-csharp">using DocumentFormat.OpenXml.Packaging;
+using OfficeTalk.Ast;
+using OfficeTalkEngine.Addressing;
+
+using var doc = WordprocessingDocument.Open(&quot;document.docx&quot;, false);
+var resolver = new WordAddressResolver(doc);
+
+var address = new Address
+{
+    Segments = { new AddressSegment { Identifier = &quot;heading&quot;, Predicates = { new KeyValuePredicate { Key = &quot;level&quot;, Operator = PredicateOperator.Equals, Value = &quot;1&quot; } } } }
+};
+
+var elements = resolver.Resolve(address);
+</code></pre>
+<h2 id="architecture">Architecture</h2>
+<p>OfficeTalkEngine implements a three-phase execution pipeline:</p>
+<pre><code>┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   1. Resolve     │────▶│   2. Validate    │────▶│   3. Execute    │
+│                  │     │                  │     │                 │
+│ Address segments │     │ Addresses exist? │     │ Snapshot all    │
+│ matched against  │     │ Styles valid?    │     │ resolutions,    │
+│ document tree    │     │ Search text      │     │ then apply ops  │
+│                  │     │ present?         │     │ deterministically│
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+</code></pre>
+<h3 id="phase-1-address-resolution">Phase 1: Address Resolution</h3>
+<p><code>IAddressResolver</code> implementations navigate document structure segment by segment, applying predicates (positional, text match, level) to locate target elements.</p>
+<h3 id="phase-2-semantic-validation">Phase 2: Semantic Validation</h3>
+<p><code>SemanticValidator</code> checks that all addresses resolve, REPLACE search strings exist in target content, and STYLE references map to actual document styles.</p>
+<h3 id="phase-3-execution">Phase 3: Execution</h3>
+<p><code>IOfficeTalkExecutor</code> implementations apply operations with snapshot semantics — all addresses are resolved before any mutations occur, ensuring deterministic results.</p>
+<h2 id="project-structure">Project Structure</h2>
+<pre><code>dotnet/
+├── OfficeTalkEngine.slnx
+├── src/
+│   └── OfficeTalkEngine/
+│       ├── Addressing/          # Address resolution against documents
+│       │   ├── IAddressResolver.cs
+│       │   └── WordAddressResolver.cs
+│       ├── Execution/           # Operation execution
+│       │   ├── IOfficeTalkExecutor.cs
+│       │   ├── WordExecutor.cs        # OpenXML SDK executor
+│       │   └── WordComExecutor.cs     # Word COM Interop executor (live editing)
+│       └── Validation/          # Semantic validation
+│           └── SemanticValidator.cs
+└── tests/
+    ├── OfficeTalkEngine.Tests/
+    │   ├── Addressing/
+    │   │   └── WordAddressResolverTests.cs
+    │   └── Execution/
+    │       └── WordExecutorTests.cs
+    └── OfficeTalkEngine.ParityTests/   # COM vs OpenXML parity tests
+        └── ParityTests.cs
+</code></pre>
+<h2 id="supported-operations">Supported Operations</h2>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th style="text-align: center;">Word (OpenXML)</th>
+<th style="text-align: center;">Word (COM)</th>
+<th style="text-align: center;">Excel</th>
+<th style="text-align: center;">PowerPoint</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SET</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+</tr>
+<tr>
+<td>REPLACE / REPLACE ALL</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>INSERT BEFORE/AFTER</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+</tr>
+<tr>
+<td>APPEND / PREPEND</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>FORMAT</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+</tr>
+<tr>
+<td>STYLE</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>COMMENT</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>INSERT ROW/COLUMN</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>SET CELLS / MERGE CELLS</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>INSERT IMAGE</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>INSERT TABLE</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>LINK</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>INSERT LIST</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>SET RUNS</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>INSERT SLIDE / DUPLICATE</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+</tr>
+<tr>
+<td>ADD/RENAME/DELETE SHEET</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>INSPECT</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+</tr>
+<tr>
+<td>PROPERTY</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">✅</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+</tbody>
+</table>
+<h2 id="dependencies">Dependencies</h2>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Version</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/spec-works/OfficeTalk">SpecWorks.OfficeTalk</a></td>
+<td>(project ref)</td>
+<td>Core parsing and AST</td>
+</tr>
+<tr>
+<td><a href="https://www.nuget.org/packages/DocumentFormat.OpenXml">DocumentFormat.OpenXml</a></td>
+<td>3.1.0</td>
+<td>OpenXML SDK for Office documents</td>
+</tr>
+</tbody>
+</table>
+<h2 id="license">License</h2>
+<p>MIT License</p>
+<h2 id="cli-tool">CLI Tool</h2>
+<p>OfficeTalkEngine includes a command-line tool for applying OfficeTalk documents:</p>
+<pre><code class="lang-bash">dotnet tool install -g SpecWorks.OfficeTalk.CLI
+</code></pre>
+<h3 id="commands">Commands</h3>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>officetalk apply</code></td>
+<td>Apply an OfficeTalk document to an Office file</td>
+</tr>
+<tr>
+<td><code>officetalk validate</code></td>
+<td>Validate an OfficeTalk document (syntactic + semantic)</td>
+</tr>
+<tr>
+<td><code>officetalk parse</code></td>
+<td>Parse and display the AST of an OfficeTalk document</td>
+</tr>
+<tr>
+<td><code>officetalk inspect</code></td>
+<td>Inspect the structure of an Office document</td>
+</tr>
+<tr>
+<td><code>officetalk version</code></td>
+<td>Display version information</td>
+</tr>
+</tbody>
+</table>
+<h3 id="example">Example</h3>
+<pre><code class="lang-bash"># Apply changes to a Word document
+officetalk apply -i changes.otk document.docx
+
+# Inspect a spreadsheet's structure
+officetalk inspect budget.xlsx --address &quot;sheet[1]&quot; --depth 1
+
+# Validate an OfficeTalk file
+officetalk validate -i review.otk
+</code></pre>
+<h3 id="live-editing-with-com">Live Editing with COM</h3>
+<p>When running on Windows with an Office application open, the CLI automatically
+uses COM interop to apply changes live — edits appear instantly in the open
+document. This works with Word, Excel, and PowerPoint.</p>
+<h2 id="supported-formats">Supported Formats</h2>
+<table>
+<thead>
+<tr>
+<th>Format</th>
+<th>Operations</th>
+<th>COM Live Edit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Word (.docx)</td>
+<td>SET, DELETE, REPLACE, FORMAT, STYLE, INSERT, COMMENT</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>Excel (.xlsx)</td>
+<td>SET, DELETE, COMMENT, FORMAT</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>PowerPoint (.pptx)</td>
+<td>SET, DELETE, COMMENT, FORMAT</td>
+<td>✅</td>
+</tr>
+</tbody>
+</table>
+<h2 id="test-cases">Test Cases</h2>
+<p>Parity test cases in <a href="https://github.com/spec-works/OfficeTalkEngine/tree/main/testcases"><code>testcases/</code></a>
+verify that the execution engine produces correct results for each operation type.</p>
+<h2 id="api-reference">API Reference</h2>
+<ul>
+<li><a href="api/OfficeTalkEngine.html">OfficeTalkEngine API Documentation</a> - Engine, executors, and address resolvers</li>
+<li><a href="api/OfficeTalk.Cli.html">OfficeTalk.CLI API Documentation</a> - CLI commands and infrastructure</li>
+</ul>
+
+</article>
+
+        <div class="contribution d-print-none">
+          <a href="https://github.com/spec-works/OfficeTalkEngine/blob/main/docs/index.md/#L1" class="edit-link">Edit this page</a>
+        </div>
+
+        <div class="next-article d-print-none border-top" id="nextArticle"></div>
+
+      </div>
+
+      <div class="affix">
+        <nav id="affix"></nav>
+      </div>
+    </main>
+
+    <div class="container-xxl search-results" id="search-results"></div>
+
+    <footer class="border-top text-secondary">
+      <div class="container-xxl">
+        <div class="flex-fill">
+          <a href='https://spec-works.github.io/'>SpecWorks Factory</a> | <a href='https://github.com/spec-works/OfficeTalkEngine'>GitHub</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

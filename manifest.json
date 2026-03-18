@@ -1,0 +1,485 @@
+{
+  "source_base_path": "/home/runner/work/OfficeTalkEngine/OfficeTalkEngine/docs",
+  "xrefmap": "xrefmap.yml",
+  "files": [
+    {
+      "type": "Resource",
+      "output": {
+        "resource": {
+          "relative_path": "index.json"
+        }
+      }
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalk.Cli.Commands.ApplyCommand.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalk.Cli.Commands.ApplyCommand.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalk.Cli.Commands.ApplyCommand",
+      "Summary": "<p sourcefile=\"api/OfficeTalk.Cli.Commands.ApplyCommand.yml\" sourcestartlinenumber=\"1\">Handles the apply command — executes an .otk file against a target document.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalk.Cli.Commands.InspectCommand.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalk.Cli.Commands.InspectCommand.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalk.Cli.Commands.InspectCommand",
+      "Summary": "<p sourcefile=\"api/OfficeTalk.Cli.Commands.InspectCommand.yml\" sourcestartlinenumber=\"1\">Handles the inspect command — resolves addresses and shows matched elements.\nSupports both OTK documents (with INSPECT blocks) and bare --address mode.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalk.Cli.Commands.ParseCommand.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalk.Cli.Commands.ParseCommand.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalk.Cli.Commands.ParseCommand",
+      "Summary": "<p sourcefile=\"api/OfficeTalk.Cli.Commands.ParseCommand.yml\" sourcestartlinenumber=\"1\">Handles the parse command — dumps the AST as JSON.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalk.Cli.Commands.ValidateCommand.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalk.Cli.Commands.ValidateCommand.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalk.Cli.Commands.ValidateCommand",
+      "Summary": "<p sourcefile=\"api/OfficeTalk.Cli.Commands.ValidateCommand.yml\" sourcestartlinenumber=\"1\">Handles the validate command — checks an .otk file without applying.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalk.Cli.Commands.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalk.Cli.Commands.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalk.Cli.Commands",
+      "Summary": null
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Addressing.ExcelAddressResolver.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Addressing.ExcelAddressResolver.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Addressing.ExcelAddressResolver",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Addressing.ExcelAddressResolver.yml\" sourcestartlinenumber=\"1\">Resolves OfficeTalk addresses against Excel (SpreadsheetDocument).\nSupports sheet[name]/cellRef, sheet[n]/row[n], and range references.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Addressing.IAddressResolver.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Addressing.IAddressResolver.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Addressing.IAddressResolver",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Addressing.IAddressResolver.yml\" sourcestartlinenumber=\"1\">Resolves OfficeTalk addresses against a specific document format,\nreturning the matched OpenXML elements.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Addressing.PowerPointAddressResolver.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Addressing.PowerPointAddressResolver.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Addressing.PowerPointAddressResolver",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Addressing.PowerPointAddressResolver.yml\" sourcestartlinenumber=\"1\">Resolves OfficeTalk addresses against PowerPoint (PresentationDocument).\nSupports slide[n], slide[n]/title, slide[n]/body, slide[n]/notes, slide[n]/shape[name].</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Addressing.WordAddressResolver.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Addressing.WordAddressResolver.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Addressing.WordAddressResolver",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Addressing.WordAddressResolver.yml\" sourcestartlinenumber=\"1\">Resolves OfficeTalk addresses against a WordprocessingDocument.\nSupports all Word segment types, heading-scoped section addressing,\nand all predicate types including regex matching.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Addressing.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Addressing.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Addressing",
+      "Summary": null
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Execution.ExcelComExecutor.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Execution.ExcelComExecutor.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Execution.ExcelComExecutor",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Execution.ExcelComExecutor.yml\" sourcestartlinenumber=\"1\">Executes OfficeTalk operations against a live Excel instance via dynamic COM.\nUses late-bound COM to avoid dependency on Office PIAs.\nRequires Excel to be running with the target workbook open.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Execution.ExcelExecutor.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Execution.ExcelExecutor.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Execution.ExcelExecutor",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Execution.ExcelExecutor.yml\" sourcestartlinenumber=\"1\">Executes OfficeTalk operations on Excel documents using snapshot semantics.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Execution.IOfficeTalkExecutor.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Execution.IOfficeTalkExecutor.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Execution.IOfficeTalkExecutor",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Execution.IOfficeTalkExecutor.yml\" sourcestartlinenumber=\"1\">Executes an OfficeTalk document against a target Office file,\napplying all operations with snapshot semantics.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Execution.PowerPointComExecutor.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Execution.PowerPointComExecutor.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Execution.PowerPointComExecutor",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Execution.PowerPointComExecutor.yml\" sourcestartlinenumber=\"1\">Executes OfficeTalk operations against a live PowerPoint instance via dynamic COM.\nUses late-bound COM to avoid dependency on Office PIAs.\nRequires PowerPoint to be running with the target presentation open.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Execution.PowerPointExecutor.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Execution.PowerPointExecutor.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Execution.PowerPointExecutor",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Execution.PowerPointExecutor.yml\" sourcestartlinenumber=\"1\">Executes OfficeTalk operations on PowerPoint documents using snapshot semantics.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Execution.WordComExecutor.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Execution.WordComExecutor.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Execution.WordComExecutor",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Execution.WordComExecutor.yml\" sourcestartlinenumber=\"1\">Executes OfficeTalk operations against a live Word instance via COM Interop.\nUses dynamic COM to avoid dependency on Office Primary Interop Assemblies.\nRequires Word to be running with the target document open.\nChanges appear instantly in the Word UI.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Execution.WordExecutor.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Execution.WordExecutor.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Execution.WordExecutor",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Execution.WordExecutor.yml\" sourcestartlinenumber=\"1\">Executes OfficeTalk operations on Word documents using snapshot semantics.\nAll addresses are resolved before any mutations occur.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Execution.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Execution.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Execution",
+      "Summary": null
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Inspection.WordInspector.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Inspection.WordInspector.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Inspection.WordInspector",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Inspection.WordInspector.yml\" sourcestartlinenumber=\"1\">Executes INSPECT operations against Word documents, producing\nJSONL responses conforming to §14.3 of the OfficeTalk specification.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Inspection.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Inspection.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Inspection",
+      "Summary": null
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Responses.CommentInfo.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Responses.CommentInfo.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Responses.CommentInfo",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Responses.CommentInfo.yml\" sourcestartlinenumber=\"1\">Comment information — always included when comments exist on the element.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Responses.ContentInfo.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Responses.ContentInfo.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Responses.ContentInfo",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Responses.ContentInfo.yml\" sourcestartlinenumber=\"1\">Content layer — present when INCLUDE content is specified.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Responses.ContextInfo.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Responses.ContextInfo.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Responses.ContextInfo",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Responses.ContextInfo.yml\" sourcestartlinenumber=\"1\">Context — sibling elements before and after the match.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Responses.ElementInfo.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Responses.ElementInfo.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Responses.ElementInfo",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Responses.ElementInfo.yml\" sourcestartlinenumber=\"1\">Describes a matched element in an INSPECT response.\nConforms to the element shape in §14.3.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Responses.InspectResponse.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Responses.InspectResponse.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Responses.InspectResponse",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Responses.InspectResponse.yml\" sourcestartlinenumber=\"1\">Response for an INSPECT block — contains matched elements with detail layers.\nConforms to the inspect-response shape in §14.3.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Responses.JsonlResponseWriter.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Responses.JsonlResponseWriter.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Responses.JsonlResponseWriter",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Responses.JsonlResponseWriter.yml\" sourcestartlinenumber=\"1\">Writes OfficeTalk responses as JSONL (one JSON object per line).\nMedia type: application/officetalk-response</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Responses.OperationResponse.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Responses.OperationResponse.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Responses.OperationResponse",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Responses.OperationResponse.yml\" sourcestartlinenumber=\"1\">Response for a write operation.\nConforms to the operation-response shape in §14.3.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Responses.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Responses.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Responses",
+      "Summary": null
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Validation.SemanticValidator.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Validation.SemanticValidator.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Validation.SemanticValidator",
+      "Summary": "<p sourcefile=\"api/OfficeTalkEngine.Validation.SemanticValidator.yml\" sourcestartlinenumber=\"1\">Validates an OfficeTalk document against a target Office document,\nchecking that addresses resolve, styles exist, and search strings are present.</p>\n"
+    },
+    {
+      "type": "ManagedReference",
+      "source_relative_path": "api/OfficeTalkEngine.Validation.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/OfficeTalkEngine.Validation.html"
+        }
+      },
+      "version": "",
+      "Uid": null,
+      "IsMRef": true,
+      "Title": "OfficeTalkEngine.Validation",
+      "Summary": null
+    },
+    {
+      "type": "Toc",
+      "source_relative_path": "api/toc.yml",
+      "output": {
+        ".html": {
+          "relative_path": "api/toc.html"
+        },
+        ".json": {
+          "relative_path": "api/toc.json"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Resource",
+      "source_relative_path": "images/logo.svg",
+      "output": {
+        "resource": {
+          "relative_path": "images/logo.svg"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Conceptual",
+      "source_relative_path": "index.md",
+      "output": {
+        ".html": {
+          "relative_path": "index.html"
+        }
+      },
+      "version": ""
+    },
+    {
+      "type": "Toc",
+      "source_relative_path": "toc.yml",
+      "output": {
+        ".html": {
+          "relative_path": "toc.html"
+        },
+        ".json": {
+          "relative_path": "toc.json"
+        }
+      },
+      "version": ""
+    }
+  ],
+  "groups": [
+    {
+      "xrefmap": "xrefmap.yml"
+    }
+  ]
+}
