@@ -344,6 +344,25 @@ SET RUNS
   RUN " for details."
 ```
 
+> **Important:** When replacing content in an existing paragraph that already has formatting
+> (e.g., a bold paragraph), RUNs without explicit formatting properties **inherit** the
+> paragraph's existing formatting. Always set properties explicitly on every RUN — use
+> `bold=false` on runs that should not be bold, etc.
+>
+> ```
+> # WRONG — second RUN inherits bold from the original paragraph
+> AT body/paragraph[text*="Important notice"]
+> SET RUNS
+>   RUN "Important notice. " bold=true
+>   RUN "Details follow here."
+>
+> # CORRECT — explicitly set bold=false on the plain run
+> AT body/paragraph[text*="Important notice"]
+> SET RUNS
+>   RUN "Important notice. " bold=true
+>   RUN "Details follow here." bold=false
+> ```
+
 #### DELETE — Remove an element
 
 ```
