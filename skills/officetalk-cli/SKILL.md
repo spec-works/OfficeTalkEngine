@@ -11,7 +11,7 @@ license: MIT
 compatibility: Requires .NET 9.0 or later SDK. Works on Windows, macOS, and Linux.
 metadata:
   author: spec-works
-  version: "0.4"
+  version: "0.5"
   repository: https://github.com/spec-works/OfficeTalkEngine
 ---
 
